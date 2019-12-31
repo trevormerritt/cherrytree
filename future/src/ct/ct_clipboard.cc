@@ -1,7 +1,7 @@
 /*
  * ct_clipboard.cc
  *
- * Copyright 2017-2019 Giuseppe Penone <giuspen@gmail.com>
+ * Copyright 2017-2020 Giuseppe Penone <giuspen@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,7 +28,6 @@
 #include "ct_export2txt.h"
 #include "ct_imports.h"
 #include "ct_misc_utils.h"
-#include "ct_app.h"
 #include "src/fmt/ostream.h"
 #include <gio/gio.h> // to get mime type
 

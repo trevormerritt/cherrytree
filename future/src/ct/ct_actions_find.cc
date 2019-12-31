@@ -25,7 +25,6 @@
 #include <glibmm/regex.h>
 #include <regex>
 #include "ct_image.h"
-#include "ct_app.h"
 #include "ct_dialogs.h"
 #include "ct_doc_rw.h"
 

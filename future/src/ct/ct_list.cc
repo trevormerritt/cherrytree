@@ -1,7 +1,7 @@
 /*
  * ct_list.cc
  *
- * Copyright 2017-2019 Giuseppe Penone <giuspen@gmail.com>
+ * Copyright 2017-2020 Giuseppe Penone <giuspen@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,7 +21,6 @@
 
 #include "ct_list.h"
 #include <gtkmm/textbuffer.h>
-#include "ct_app.h"
 
 /*
 std::string CtList::get_list_type(int list_num_id)

@@ -23,7 +23,6 @@
 #include <gtkmm/dialog.h>
 #include <gtkmm/stock.h>
 #include "ct_image.h"
-#include "ct_app.h"
 #include "ct_dialogs.h"
 #include "ct_doc_rw.h"
 #include <ctime>

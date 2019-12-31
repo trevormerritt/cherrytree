@@ -25,7 +25,6 @@
 #include <gtkmm/treeview.h>
 #include <gtkmm/cellrendererpixbuf.h>
 #include <gtkmm/colorchooserdialog.h>
-#include "ct_app.h"
 #include "ct_treestore.h"
 
 CtDialogTextEntry::CtDialogTextEntry(const Glib::ustring& title,

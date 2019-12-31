@@ -1,7 +1,7 @@
 /*
  * ct_export2html.cc
  *
- * Copyright 2017-2019 Giuseppe Penone <giuspen@gmail.com>
+ * Copyright 2017-2020 Giuseppe Penone <giuspen@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,7 +21,6 @@
 
 #include "ct_export2html.h"
 #include "ct_misc_utils.h"
-#include "ct_app.h"
 
 CtExport2Html::CtExport2Html()
 {

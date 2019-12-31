@@ -1,7 +1,7 @@
 /*
  * ct_treestore.cc
  *
- * Copyright 2017-2019 Giuseppe Penone <giuspen@gmail.com>
+ * Copyright 2017-2020 Giuseppe Penone <giuspen@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,14 +20,13 @@
  */
 
 #include <algorithm>
-#include "ct_doc_rw.h"
-#include "ct_app.h"
 #include "ct_treestore.h"
+#include "ct_doc_rw.h"
 #include "ct_misc_utils.h"
+#include "ct_main_win.h"
 
 CtTreeModelColumns::~CtTreeModelColumns()
 {
-
 }
 
 CtTreeIter::CtTreeIter(Gtk::TreeIter iter, const CtTreeModelColumns* pColumns, CtSQLite* pCtSQLite)
@@ -248,6 +247,22 @@ void CtTreeIter::pending_new_db_node()
     }
 }
 
+
+CtTreeStore::CtTreeStore(CtMainWin* pCtMainWin)
+ : _pCtMainWin(pCtMainWin)
+{
+    _rTreeStore = Gtk::TreeStore::create(_columns);
+}
+
+CtTreeStore::~CtTreeStore()
+{
+    _iter_delete_anchored_widgets(get_root_children());
+    if (nullptr != _pCtSQLite)
+    {
+        delete _pCtSQLite;
+    }
+}
+
 void CtTreeStore::pending_rm_db_nodes(const std::vector<gint64>& node_ids)
 {
     if (nullptr != _pCtSQLite)
@@ -269,20 +284,6 @@ bool CtTreeStore::pending_data_write(const bool run_vacuum)
     if (nullptr != _pCtSQLite)
     {
         _pCtSQLite->pending_data_write(this, _bookmarks, run_vacuum);
-    }
-}
-
-CtTreeStore::CtTreeStore()
-{
-    _rTreeStore = Gtk::TreeStore::create(_columns);
-}
-
-CtTreeStore::~CtTreeStore()
-{
-    _iter_delete_anchored_widgets(get_root_children());
-    if (nullptr != _pCtSQLite)
-    {
-        delete _pCtSQLite;
     }
 }
 
@@ -331,7 +332,7 @@ void CtTreeStore::set_tree_path_n_text_cursor(Gtk::TreeView* pTreeView,
         {
             treeview_safe_set_cursor(pTreeView, treeIter);
             treeSelFromConfig = true;
-            if (CtApp::P_ctCfg->treeClickExpand)
+            if (_pCtMainWin->get_ct_config()->treeClickExpand)
             {
                 pTreeView->expand_row(_rTreeStore->get_path(treeIter), false/*open_all*/);
             }
@@ -381,7 +382,7 @@ void CtTreeStore::view_append_columns(Gtk::TreeView* pTreeView)
                     Gtk::TreeRow row = *treeIter;
                     if (row.get_value(_columns.colForeground).empty())
                     {
-                        dynamic_cast<Gtk::CellRendererText*>(pCell)->property_foreground() = CtApp::P_ctCfg->ttDefFg;
+                        dynamic_cast<Gtk::CellRendererText*>(pCell)->property_foreground() = _pCtMainWin->get_ct_config()->ttDefFg;
                     }
                     else
                     {
@@ -449,37 +450,37 @@ Glib::RefPtr<Gdk::Pixbuf> CtTreeStore::_get_node_icon(int nodeDepth, const std::
     if (0 != customIconId)
     {
         // customIconId
-        rPixbuf = CtApp::R_icontheme->load_icon(CtConst::NODES_STOCKS.at((int)customIconId), CtConst::NODE_ICON_SIZE);
+        rPixbuf = _pCtMainWin->get_icon_theme()->load_icon(CtConst::NODES_STOCKS.at((int)customIconId), CtConst::NODE_ICON_SIZE);
     }
-    else if (CtConst::NODE_ICON_TYPE_NONE == CtApp::P_ctCfg->nodesIcons)
+    else if (CtConst::NODE_ICON_TYPE_NONE == _pCtMainWin->get_ct_config()->nodesIcons)
     {
         // NODE_ICON_TYPE_NONE
-        rPixbuf = CtApp::R_icontheme->load_icon(CtConst::NODES_STOCKS.at(CtConst::NODE_ICON_NO_ICON_ID), CtConst::NODE_ICON_SIZE);
+        rPixbuf = _pCtMainWin->get_icon_theme()->load_icon(CtConst::NODES_STOCKS.at(CtConst::NODE_ICON_NO_ICON_ID), CtConst::NODE_ICON_SIZE);
     }
     else if (CtStrUtil::isPgcharInPgcharIterable(syntax.c_str(), CtConst::TEXT_SYNTAXES))
     {
         // text node
-        if (CtConst::NODE_ICON_TYPE_CHERRY == CtApp::P_ctCfg->nodesIcons)
+        if (CtConst::NODE_ICON_TYPE_CHERRY == _pCtMainWin->get_ct_config()->nodesIcons)
         {
             if (1 == CtConst::NODES_ICONS.count(nodeDepth))
             {
-                rPixbuf = CtApp::R_icontheme->load_icon(CtConst::NODES_ICONS.at(nodeDepth), CtConst::NODE_ICON_SIZE);
+                rPixbuf = _pCtMainWin->get_icon_theme()->load_icon(CtConst::NODES_ICONS.at(nodeDepth), CtConst::NODE_ICON_SIZE);
             }
             else
             {
-                rPixbuf = CtApp::R_icontheme->load_icon(CtConst::NODES_ICONS.at(-1), CtConst::NODE_ICON_SIZE);
+                rPixbuf = _pCtMainWin->get_icon_theme()->load_icon(CtConst::NODES_ICONS.at(-1), CtConst::NODE_ICON_SIZE);
             }
         }
         else
         {
             // NODE_ICON_TYPE_CUSTOM
-            rPixbuf = CtApp::R_icontheme->load_icon(CtConst::NODES_STOCKS.at(CtApp::P_ctCfg->defaultIconText), CtConst::NODE_ICON_SIZE);
+            rPixbuf = _pCtMainWin->get_icon_theme()->load_icon(CtConst::NODES_STOCKS.at(_pCtMainWin->get_ct_config()->defaultIconText), CtConst::NODE_ICON_SIZE);
         }
     }
     else
     {
         // code node
-        rPixbuf = CtApp::R_icontheme->load_icon(CtConst::getStockIdForCodeType(syntax), CtConst::NODE_ICON_SIZE);
+        rPixbuf = _pCtMainWin->get_icon_theme()->load_icon(CtConst::getStockIdForCodeType(syntax), CtConst::NODE_ICON_SIZE);
     }
     return rPixbuf;
 }
@@ -540,7 +541,7 @@ void CtTreeStore::update_node_aux_icon(const Gtk::TreeIter& treeIter)
     if (stock_id.empty())
         treeIter->set_value(_columns.rColPixbufAux, Glib::RefPtr<Gdk::Pixbuf>());
     else
-        treeIter->set_value(_columns.rColPixbufAux, CtApp::R_icontheme->load_icon(stock_id, CtConst::NODE_ICON_SIZE));
+        treeIter->set_value(_columns.rColPixbufAux, _pCtMainWin->get_icon_theme()->load_icon(stock_id, CtConst::NODE_ICON_SIZE));
 }
 
 Gtk::TreeIter CtTreeStore::appendNode(CtNodeData* pNodeData, const Gtk::TreeIter* pParentIter)
@@ -594,9 +595,9 @@ Gtk::TreeIter CtTreeStore::onRequestAppendNode(CtNodeData* pNodeData, const Gtk:
 
 void CtTreeStore::_on_textbuffer_modified_changed(Glib::RefPtr<Gtk::TextBuffer> rTextBuffer)
 {
-    if (CtApp::P_ctActions->getCtMainWin()->user_active() and rTextBuffer->get_modified())
+    if (_pCtMainWin->user_active() and rTextBuffer->get_modified())
     {
-        CtApp::P_ctActions->getCtMainWin()->update_window_save_needed(CtSaveNeededUpdType::nbuf);
+        _pCtMainWin->update_window_save_needed(CtSaveNeededUpdType::nbuf);
     }
 }
 

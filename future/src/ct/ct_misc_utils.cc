@@ -1,7 +1,7 @@
 /*
  * ct_misc_utils.cc
  *
- * Copyright 2017-2019 Giuseppe Penone <giuspen@gmail.com>
+ * Copyright 2017-2020 Giuseppe Penone <giuspen@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,7 +23,6 @@
 #include <iostream>
 #include <string.h>
 #include "ct_misc_utils.h"
-#include "ct_app.h"
 #include <ctime>
 #include <regex>
 #include <glib/gstdio.h> // to get stats
@@ -99,7 +98,7 @@ void CtMiscUtil::filepath_extension_fix(const CtDocType ctDocType, const CtDocEn
 
 Glib::RefPtr<Gsv::Buffer> CtMiscUtil::get_new_text_buffer(const std::string& syntax, const Glib::ustring& textContent)
 {
-    Glib::RefPtr<Gsv::Buffer> rRetTextBuffer{nullptr};
+    Glib::RefPtr<Gsv::Buffer> rRetTextBuffer;
     rRetTextBuffer = Gsv::Buffer::create(CtApp::R_textTagTable);
     rRetTextBuffer->set_max_undo_levels(CtApp::P_ctCfg->limitUndoableSteps);
     if (CtConst::RICH_TEXT_ID != syntax)

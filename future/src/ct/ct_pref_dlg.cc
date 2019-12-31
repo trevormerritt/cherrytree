@@ -1,3 +1,24 @@
+/*
+ * ct_pref_dlg.cc
+ *
+ * Copyright 2017-2020 Giuseppe Penone <giuspen@gmail.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+ * MA 02110-1301, USA.
+ */
+
 #include "ct_pref_dlg.h"
 #include <gtkmm/notebook.h>
 #include <gtkmm/adjustment.h>
@@ -6,7 +27,6 @@
 #include <glib/gi18n.h>
 #include <algorithm>
 #include <gdk/gdkkeysyms.h>
-#include "ct_app.h"
 #include "ct_misc_utils.h"
 #include "ct_image.h"
 #include "ct_dialogs.h"
@@ -14,15 +34,14 @@
 
 CtPrefDlg::UniversalModelColumns::~UniversalModelColumns()
 {
-
 }
 
-CtPrefDlg::CtPrefDlg(CtMainWin* parent, CtMenu* pCtMenu)
-    : Gtk::Dialog (_("Preferences"), *parent, true)
+CtPrefDlg::CtPrefDlg(CtMainWin* parent)
+ : Gtk::Dialog(_("Preferences"), *parent, true)
 {
     _restartReasons = 0;
     _pCtMainWin = parent;
-    _pCtMenu = pCtMenu;
+    _pCtMenu = &_pCtMainWin->get_ct_menu();
 
     Gtk::Notebook* pNotebook = Gtk::manage(new Gtk::Notebook());
     pNotebook->set_tab_pos(Gtk::PositionType::POS_LEFT);
@@ -46,7 +65,6 @@ CtPrefDlg::CtPrefDlg(CtMainWin* parent, CtMenu* pCtMenu)
 
 CtPrefDlg::~CtPrefDlg()
 {
-
 }
 
 Gtk::Widget* CtPrefDlg::build_tab_text_n_code()

@@ -21,8 +21,6 @@
 
 #pragma once
 
-#include "ct_app.h"
-
 #include <string>
 #include <libxml++/libxml++.h>
 #include <gtkmm.h>

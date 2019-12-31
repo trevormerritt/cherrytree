@@ -1,7 +1,7 @@
 /*
  * ct_xml_rw.cc
  *
- * Copyright 2017-2019 Giuseppe Penone <giuspen@gmail.com>
+ * Copyright 2017-2020 Giuseppe Penone <giuspen@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,7 +23,6 @@
 #include "ct_doc_rw.h"
 #include "ct_misc_utils.h"
 #include "ct_const.h"
-#include "ct_app.h"
 #include "ct_codebox.h"
 #include "ct_image.h"
 #include "ct_table.h"
