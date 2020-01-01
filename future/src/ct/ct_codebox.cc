@@ -33,7 +33,7 @@ CtTextCell::CtTextCell(CtMainWin* pCtMainWin,
  : _syntaxHighlighting(syntaxHighlighting),
    _ctTextview(pCtMainWin)
 {
-    _rTextBuffer = CtMiscUtil::get_new_text_buffer(syntaxHighlighting, textContent);
+    _rTextBuffer = pCtMainWin->get_new_text_buffer(syntaxHighlighting, textContent);
     _ctTextview.set_buffer(_rTextBuffer);
     _ctTextview.setup_for_syntax(_syntaxHighlighting);
 }

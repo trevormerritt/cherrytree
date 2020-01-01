@@ -128,6 +128,13 @@ public:
 public:
     Glib::RefPtr<Gdk::Pixbuf> get_icon(const std::string& name, int size);
     Gtk::Image*               new_image_from_stock(const std::string& stockImage, Gtk::BuiltinIconSize size);
+    Glib::RefPtr<Gsv::Buffer> get_new_text_buffer(const std::string& syntax, const Glib::ustring& textContent=""); // pygtk: buffer_create
+    const std::string get_text_tag_name_exist_or_create(const std::string& propertyName, const std::string& propertyValue);
+    Glib::ustring sourceview_hovering_link_get_tooltip(const Glib::ustring& link);
+    bool apply_tag_try_automatic_bounds(Glib::RefPtr<Gtk::TextBuffer> text_buffer, Gtk::TextIter iter_start);
+    std::string get_font_css(const std::string& fontStr);
+    const std::string& get_font_for_syntax_highlighting(const std::string& syntaxHighlighting);
+    std::string get_font_css_for_syntax_highlighting(const std::string& syntaxHighlighting);
 
 private:
     Gtk::HBox&     _init_status_bar();

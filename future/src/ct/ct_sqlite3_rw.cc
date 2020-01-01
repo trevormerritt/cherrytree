@@ -26,6 +26,7 @@
 #include "ct_codebox.h"
 #include "ct_image.h"
 #include "ct_table.h"
+#include "ct_main_win.h"
 
 const char CtSQLite::TABLE_NODE_CREATE[]{"CREATE TABLE node ("
 "node_id INTEGER UNIQUE,"
@@ -108,7 +109,8 @@ const char CtSQLite::TABLE_BOOKMARK_DELETE[]{"DELETE FROM bookmark"};
 const char CtSQLite::ERR_SQLITE_PREPV2[]{"!! sqlite3_prepare_v2: "};
 const char CtSQLite::ERR_SQLITE_STEP[]{"!! sqlite3_step: "};
 
-CtSQLite::CtSQLite(const char* filepath)
+CtSQLite::CtSQLite(CtMainWin* pCtMainWin, const char* filepath)
+ : CtDocRead(pCtMainWin)
 {
     const int ret_code = sqlite3_open(filepath, &_pDb);
     if (SQLITE_OK == ret_code)
@@ -224,11 +226,11 @@ Glib::RefPtr<Gsv::Buffer> CtSQLite::get_text_buffer(const std::string& syntax,
             const char* textContent = reinterpret_cast<const char*>(sqlite3_column_text(p_stmt, 0));
             if (CtConst::RICH_TEXT_ID != syntax)
             {
-                rRetTextBuffer = CtMiscUtil::get_new_text_buffer(syntax, textContent);
+                rRetTextBuffer = _pCtMainWin->get_new_text_buffer(syntax, textContent);
             }
             else
             {
-                CtXmlRead ctXmlRead(nullptr, textContent);
+                CtXmlRead ctXmlRead(_pCtMainWin, nullptr, textContent);
                 if (nullptr != ctXmlRead.get_document())
                 {
                     rRetTextBuffer = ctXmlRead.get_text_buffer(syntax, anchoredWidgets);
@@ -330,7 +332,8 @@ void CtSQLite::_get_text_buffer_anchored_widgets(Glib::RefPtr<Gsv::Buffer>& rTex
             const bool highlightBrackets = sqlite3_column_int64(pp_stmt[i], 8);
             const bool showLineNumbers = sqlite3_column_int64(pp_stmt[i], 9);
 
-            CtCodebox* pCtCodebox = new CtCodebox(textContent,
+            CtCodebox* pCtCodebox = new CtCodebox(_pCtMainWin,
+                                                  textContent,
                                                   syntaxHighlighting,
                                                   frameWidth,
                                                   frameHeight,
@@ -352,13 +355,13 @@ void CtSQLite::_get_text_buffer_anchored_widgets(Glib::RefPtr<Gsv::Buffer>& rTex
             const char* textContent = reinterpret_cast<const char*>(sqlite3_column_text(pp_stmt[i], 3));
             const int colMin = sqlite3_column_int64(pp_stmt[i], 4);
             const int colMax = sqlite3_column_int64(pp_stmt[i], 5);
-            CtXmlRead ctXmlRead(nullptr, textContent);
+            CtXmlRead ctXmlRead(_pCtMainWin, nullptr, textContent);
             CtTableMatrix tableMatrix;
             if (nullptr != ctXmlRead.get_document())
             {
                 const bool isHeadFront = ctXmlRead.populate_table_matrix_get_is_head_front(tableMatrix, ctXmlRead.get_document()->get_root_node());
 
-                pAnchoredWidget = new CtTable(tableMatrix, colMin, colMax, isHeadFront, charOffset[i], justification[i]);
+                pAnchoredWidget = new CtTable(_pCtMainWin, tableMatrix, colMin, colMax, isHeadFront, charOffset[i], justification[i]);
                 //std::cout << "table " << charOffset[i] << std::endl;
                 charOffset[i] = cOffsetRead;
             }
@@ -376,7 +379,7 @@ void CtSQLite::_get_text_buffer_anchored_widgets(Glib::RefPtr<Gsv::Buffer>& rTex
             const Glib::ustring anchorName = reinterpret_cast<const char*>(sqlite3_column_text(pp_stmt[i], 3));
             if (!anchorName.empty())
             {
-                pAnchoredWidget = new CtImageAnchor(anchorName, charOffset[i], justification[i]);
+                pAnchoredWidget = new CtImageAnchor(_pCtMainWin, anchorName, charOffset[i], justification[i]);
             }
             else
             {
@@ -387,12 +390,12 @@ void CtSQLite::_get_text_buffer_anchored_widgets(Glib::RefPtr<Gsv::Buffer>& rTex
                 if (!fileName.empty())
                 {
                     const double timeDouble = sqlite3_column_int64(pp_stmt[i], 7);
-                    pAnchoredWidget = new CtImageEmbFile(fileName, rawBlob, timeDouble, charOffset[i], justification[i]);
+                    pAnchoredWidget = new CtImageEmbFile(_pCtMainWin, fileName, rawBlob, timeDouble, charOffset[i], justification[i]);
                 }
                 else
                 {
                     const Glib::ustring link = reinterpret_cast<const char*>(sqlite3_column_text(pp_stmt[i], 6));
-                    pAnchoredWidget = new CtImagePng(rawBlob, link, charOffset[i], justification[i]);
+                    pAnchoredWidget = new CtImagePng(_pCtMainWin, rawBlob, link, charOffset[i], justification[i]);
                 }
             }
             //std::cout << "image " << charOffset[i] << std::endl;

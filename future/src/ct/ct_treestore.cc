@@ -199,7 +199,7 @@ std::list<CtAnchoredWidget*> CtTreeIter::get_embedded_pixbufs_tables_codeboxes(c
                     if (rChildAnchor == pCtAnchoredWidget->getTextChildAnchor())
                     {
                         pCtAnchoredWidget->updateOffset(curr_iter.get_offset());
-                        pCtAnchoredWidget->updateJustification(CtMiscUtil::getTextIterAlignment(curr_iter));
+                        pCtAnchoredWidget->updateJustification(curr_iter);
                         retAnchoredWidgetsList.push_back(pCtAnchoredWidget);
                         break;
                     }
@@ -400,7 +400,7 @@ bool CtTreeStore::read_nodes_from_filepath(const char* filepath, const bool isIm
     CtDocRead* pCtDocRead{nullptr};
     if (CtDocType::XML == docType)
     {
-        CtXmlRead* pCtXmlRead = new CtXmlRead(filepath, nullptr);
+        CtXmlRead* pCtXmlRead = new CtXmlRead(_pCtMainWin, filepath, nullptr);
         if (pCtXmlRead and (nullptr != pCtXmlRead->get_document()))
         {
             pCtDocRead = pCtXmlRead;
@@ -408,7 +408,7 @@ bool CtTreeStore::read_nodes_from_filepath(const char* filepath, const bool isIm
     }
     else if (CtDocType::SQLite == docType)
     {
-        CtSQLite* pCtSQLite = new CtSQLite(filepath);
+        CtSQLite* pCtSQLite = new CtSQLite(_pCtMainWin, filepath);
         if (pCtSQLite and pCtSQLite->get_db_open_ok())
         {
             pCtDocRead = pCtSQLite;

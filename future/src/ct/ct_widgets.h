@@ -61,7 +61,9 @@ public:
     virtual CtAnchWidgType get_type() = 0;
 
     void updateOffset(int charOffset) { _charOffset = charOffset; }
-    void updateJustification(std::string justification) { _justification = justification; }
+    void updateJustification(const std::string& justification) { _justification = justification; }
+    void updateJustification(const Gtk::TextIter& textIter);
+    const gchar* get_text_iter_alignment(const Gtk::TextIter& textIter);
 
     int getOffset() { return _charOffset; }
     const std::string& getJustification() { return _justification; }

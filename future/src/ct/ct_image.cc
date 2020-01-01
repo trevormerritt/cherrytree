@@ -22,6 +22,7 @@
 #include "ct_image.h"
 #include "ct_doc_rw.h"
 #include "ct_main_win.h"
+#include "ct_actions.h"
 
 CtImage::CtImage(CtMainWin* pCtMainWin,
                  const std::string& rawBlob,

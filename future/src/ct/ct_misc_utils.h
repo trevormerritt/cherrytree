@@ -44,14 +44,6 @@ const gchar* get_doc_extension(const CtDocType ctDocType, const CtDocEncrypt ctD
 
 void filepath_extension_fix(const CtDocType ctDocType, const CtDocEncrypt ctDocEncrypt, std::string& filepath);
 
-Glib::RefPtr<Gsv::Buffer> get_new_text_buffer(const std::string& syntax, const Glib::ustring& textContent=""); // pygtk: buffer_create
-
-const Glib::ustring getTextTagNameExistOrCreate(Glib::ustring propertyName, Glib::ustring propertyValue);
-
-const gchar* getTextIterAlignment(const Gtk::TextIter& textIter);
-
-Glib::ustring sourceview_hovering_link_get_tooltip(const Glib::ustring& link);
-
 void widget_set_colors(Gtk::Widget& widget, const std::string& fg, const std::string& bg,
                        bool syntax_highl, const std::string& gdk_col_fg);
 
@@ -68,8 +60,6 @@ Gtk::BuiltinIconSize getIconSize(int size);
 } // namespace CtMiscUtil
 
 namespace CtTextIterUtil {
-
-bool apply_tag_try_automatic_bounds(Glib::RefPtr<Gtk::TextBuffer> text_buffer, Gtk::TextIter iter_start);
 
 bool get_is_camel_case(Gtk::TextIter iter_start, int num_chars);
 
@@ -122,12 +112,6 @@ namespace CtFontUtil {
 std::string getFontFamily(const std::string& fontStr);
 
 std::string getFontSizeStr(const std::string& fontStr);
-
-std::string getFontCss(const std::string& fontStr);
-
-const std::string& getFontForSyntaxHighlighting(const std::string& syntaxHighlighting);
-
-std::string getFontCssForSyntaxHighlighting(const std::string& syntaxHighlighting);
 
 } // namespace CtFontUtil
 

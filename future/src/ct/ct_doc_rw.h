@@ -28,20 +28,28 @@
 #include "ct_table.h"
 #include "ct_types.h"
 
+class CtMainWin;
+
 class CtDocRead
 {
 public:
+    CtDocRead(CtMainWin* pCtMainWin) : _pCtMainWin(pCtMainWin) {}
+    virtual ~CtDocRead() {}
+
     virtual bool read_populate_tree(const Gtk::TreeIter* pParentIter=nullptr) = 0;
 
     sigc::signal<bool, gint64> signalAddBookmark;
     sigc::signal<Gtk::TreeIter, CtNodeData*, const Gtk::TreeIter*> signalAppendNode;
+
+protected:
+    CtMainWin* _pCtMainWin;
 };
 
 class CtXmlRead : public CtDocRead, public xmlpp::DomParser
 {
 public:
-    CtXmlRead(const char* filepath, const char* textContent);
-    virtual ~CtXmlRead();
+    CtXmlRead(CtMainWin* pCtMainWin, const char* filepath, const char* textContent);
+    virtual ~CtXmlRead() override;
     bool read_populate_tree(const Gtk::TreeIter* pParentIter=nullptr) override;
     Glib::RefPtr<Gsv::Buffer> get_text_buffer(const std::string& syntax,
                                               std::list<CtAnchoredWidget*>& anchoredWidgets,
@@ -55,10 +63,13 @@ private:
     static CtXmlNodeType _node_get_type_from_name(const Glib::ustring& xmlNodeName);
 
 public:
-    static void get_text_buffer_slot(Glib::RefPtr<Gsv::Buffer>& rTextBuffer, Gtk::TextIter* insertIter,
-                                     std::list<CtAnchoredWidget*>& anchoredWidgets,
-                                     xmlpp::Node *pNodeParent, int forceCharOffset = -1);
-    static bool populate_table_matrix_get_is_head_front(CtTableMatrix& tableMatrix, xmlpp::Element* pNodeElement);
+    void get_text_buffer_slot(Glib::RefPtr<Gsv::Buffer>& rTextBuffer,
+                              Gtk::TextIter* insertIter,
+                              std::list<CtAnchoredWidget*>& anchoredWidgets,
+                              xmlpp::Node *pNodeParent,
+                              int forceCharOffset=-1);
+    bool populate_table_matrix_get_is_head_front(CtTableMatrix& tableMatrix,
+                                                 xmlpp::Element* pNodeElement);
 };
 
 class CtXmlWrite : public xmlpp::Document
@@ -89,8 +100,8 @@ public:
 class CtSQLite : public CtDocRead
 {
 public:
-    CtSQLite(const char* filepath);
-    virtual ~CtSQLite();
+    CtSQLite(CtMainWin* pCtMainWin, const char* filepath);
+    virtual ~CtSQLite() override;
     bool get_db_open_ok() { return _dbOpenOk; }
 
     bool read_populate_tree(const Gtk::TreeIter* pParentIter=nullptr) override;

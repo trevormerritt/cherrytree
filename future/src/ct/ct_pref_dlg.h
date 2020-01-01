@@ -30,7 +30,7 @@
 class CtPrefDlg : public Gtk::Dialog
 {
 public:
-    CtPrefDlg(CtMainWin* parent);
+    CtPrefDlg(CtMainWin* pCtMainWin);
     virtual ~CtPrefDlg();
 
 private:

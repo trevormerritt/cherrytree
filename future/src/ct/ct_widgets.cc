@@ -94,6 +94,28 @@ CtAnchoredWidget::~CtAnchoredWidget()
 {
 }
 
+void CtAnchoredWidget::updateJustification(const Gtk::TextIter& textIter)
+{
+    updateJustification(get_text_iter_alignment(textIter));
+}
+
+const gchar* CtAnchoredWidget::get_text_iter_alignment(const Gtk::TextIter& textIter)
+{
+    const char* retVal{CtConst::TAG_PROP_VAL_LEFT};
+    for (const char* currAlignType : std::list{CtConst::TAG_PROP_VAL_LEFT,
+                                               CtConst::TAG_PROP_VAL_CENTER,
+                                               CtConst::TAG_PROP_VAL_FILL,
+                                               CtConst::TAG_PROP_VAL_RIGHT})
+    {
+        const std::string tagName = _pCtMainWin->get_text_tag_name_exist_or_create(CtConst::TAG_JUSTIFICATION, currAlignType);
+        if (textIter.has_tag(_pCtMainWin->get_text_tag_table()->lookup(tagName)))
+        {
+            retVal = currAlignType;
+            break;
+        }
+    }
+    return retVal;
+}
 
 void CtAnchoredWidget::insertInTextBuffer(Glib::RefPtr<Gsv::Buffer> rTextBuffer)
 {
@@ -103,7 +125,7 @@ void CtAnchoredWidget::insertInTextBuffer(Glib::RefPtr<Gsv::Buffer> rTextBuffer)
         Gtk::TextIter textIterStart = rTextBuffer->get_iter_at_child_anchor(_rTextChildAnchor);
         Gtk::TextIter textIterEnd = textIterStart;
         textIterEnd.forward_char();
-        Glib::ustring tagName = CtMiscUtil::getTextTagNameExistOrCreate(CtConst::TAG_JUSTIFICATION, _justification);
+        Glib::ustring tagName = CtMiscUtil::get_text_tag_name_exist_or_create(CtConst::TAG_JUSTIFICATION, _justification);
         rTextBuffer->apply_tag_by_name(tagName, textIterStart, textIterEnd);
     }
 }
@@ -230,7 +252,7 @@ void CtTextView::set_selection_at_offset_n_delta(int offset, int delta, Glib::Re
 void CtTextView::_setFontForSyntax(const std::string& syntaxHighlighting)
 {
     Glib::RefPtr<Gtk::StyleContext> rStyleContext = get_style_context();
-    std::string fontCss = CtFontUtil::getFontCssForSyntaxHighlighting(syntaxHighlighting);
+    std::string fontCss = CtFontUtil::get_font_css_for_syntax_highlighting(syntaxHighlighting);
     _pCtMainWin->get_css_provider()->load_from_data(fontCss);
     rStyleContext->add_provider(_pCtMainWin->get_css_provider(), GTK_STYLE_PROVIDER_PRIORITY_USER);
 }

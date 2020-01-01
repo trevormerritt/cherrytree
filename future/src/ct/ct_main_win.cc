@@ -133,6 +133,280 @@ Gtk::Image* CtMainWin::new_image_from_stock(const std::string& stockImage, Gtk::
     return image;
 }
 
+Glib::RefPtr<Gsv::Buffer> CtMainWin::get_new_text_buffer(const std::string& syntax, const Glib::ustring& textContent)
+{
+    Glib::RefPtr<Gsv::Buffer> rRetTextBuffer;
+    rRetTextBuffer = Gsv::Buffer::create(_pGtkTextTagTable);
+    rRetTextBuffer->set_max_undo_levels(_pCtConfig->limitUndoableSteps);
+    if (CtConst::RICH_TEXT_ID != syntax)
+    {
+        rRetTextBuffer->set_style_scheme(_pGsvStyleSchemeManager->get_scheme(_pCtConfig->styleSchemeId));
+        if (CtConst::PLAIN_TEXT_ID == syntax)
+        {
+            rRetTextBuffer->set_highlight_syntax(false);
+        }
+        else
+        {
+            rRetTextBuffer->set_language(_pGsvLanguageManager->get_language(syntax));
+            rRetTextBuffer->set_highlight_syntax(true);
+        }
+        rRetTextBuffer->set_highlight_matching_brackets(true);
+    }
+    if (not textContent.empty())
+    {
+        rRetTextBuffer->begin_not_undoable_action();
+        rRetTextBuffer->set_text(textContent);
+        rRetTextBuffer->end_not_undoable_action();
+        rRetTextBuffer->set_modified(false);
+    }
+    return rRetTextBuffer;
+}
+
+const std::string CtMainWin::get_text_tag_name_exist_or_create(const std::string& propertyName, const std::string& propertyValue)
+{
+    const std::string tagName{propertyName + "_" + propertyValue};
+    Glib::RefPtr<Gtk::TextTag> rTextTag = _pGtkTextTagTable->lookup(tagName);
+    if (not rTextTag)
+    {
+        bool identified{true};
+        rTextTag = Gtk::TextTag::create(tagName);
+        if (CtConst::TAG_WEIGHT == propertyName and CtConst::TAG_PROP_VAL_HEAVY == propertyValue)
+        {
+            rTextTag->property_weight() = PANGO_WEIGHT_HEAVY;
+        }
+        else if (CtConst::TAG_FOREGROUND == propertyName)
+        {
+            rTextTag->property_foreground() = propertyValue;
+        }
+        else if (CtConst::TAG_BACKGROUND == propertyName)
+        {
+            rTextTag->property_background() = propertyValue;
+        }
+        else if (CtConst::TAG_SCALE == propertyName)
+        {
+            if (CtConst::TAG_PROP_VAL_SMALL == propertyValue)
+            {
+                rTextTag->property_scale() = PANGO_SCALE_SMALL;
+            }
+            else if (CtConst::TAG_PROP_VAL_H1 == propertyValue)
+            {
+                rTextTag->property_scale() = PANGO_SCALE_XX_LARGE;
+            }
+            else if (CtConst::TAG_PROP_VAL_H2 == propertyValue)
+            {
+                rTextTag->property_scale() = PANGO_SCALE_X_LARGE;
+            }
+            else if (CtConst::TAG_PROP_VAL_H3 == propertyValue)
+            {
+                rTextTag->property_scale() = PANGO_SCALE_LARGE;
+            }
+            else if (CtConst::TAG_PROP_VAL_SUB == propertyValue or CtConst::TAG_PROP_VAL_SUP == propertyValue)
+            {
+                rTextTag->property_scale() = PANGO_SCALE_X_SMALL;
+                int propRise = Pango::FontDescription(_pCtConfig->rtFont).get_size();
+                if (CtConst::TAG_PROP_VAL_SUB == propertyValue)
+                {
+                    propRise /= -4;
+                }
+                else
+                {
+                    propRise /= 2;
+                }
+                rTextTag->property_rise() = propRise;
+            }
+            else
+            {
+                identified = false;
+            }
+        }
+        else if (CtConst::TAG_STYLE == propertyName and CtConst::TAG_PROP_VAL_ITALIC == propertyValue)
+        {
+            rTextTag->property_style() = Pango::Style::STYLE_ITALIC;
+        }
+        else if (CtConst::TAG_UNDERLINE == propertyName and CtConst::TAG_PROP_VAL_SINGLE == propertyValue)
+        {
+            rTextTag->property_underline() = Pango::Underline::UNDERLINE_SINGLE;
+        }
+        else if (CtConst::TAG_JUSTIFICATION == propertyName)
+        {
+            if (CtConst::TAG_PROP_VAL_LEFT == propertyValue)
+            {
+                rTextTag->property_justification() = Gtk::Justification::JUSTIFY_LEFT;
+            }
+            else if (CtConst::TAG_PROP_VAL_RIGHT == propertyValue)
+            {
+                rTextTag->property_justification() = Gtk::Justification::JUSTIFY_RIGHT;
+            }
+            else if (CtConst::TAG_PROP_VAL_CENTER == propertyValue)
+            {
+                rTextTag->property_justification() = Gtk::Justification::JUSTIFY_CENTER;
+            }
+            else if (CtConst::TAG_PROP_VAL_FILL == propertyValue)
+            {
+                rTextTag->property_justification() = Gtk::Justification::JUSTIFY_FILL;
+            }
+            else
+            {
+                identified = false;
+            }
+        }
+        else if (CtConst::TAG_FAMILY == propertyName and CtConst::TAG_PROP_VAL_MONOSPACE == propertyValue)
+        {
+            rTextTag->property_family() = CtConst::TAG_PROP_VAL_MONOSPACE;
+            if (not _pCtConfig->monospaceBg.empty())
+            {
+                rTextTag->property_background() = _pCtConfig->monospaceBg;
+            }
+        }
+        else if (CtConst::TAG_STRIKETHROUGH == propertyName and CtConst::TAG_PROP_VAL_TRUE == propertyValue)
+        {
+            rTextTag->property_strikethrough() = true;
+        }
+        else if (CtConst::TAG_LINK == propertyName and propertyValue.size() > 4)
+        {
+            if (_pCtConfig->linksUnderline)
+            {
+                rTextTag->property_underline() = Pango::Underline::UNDERLINE_SINGLE;
+            }
+            Glib::ustring linkType = propertyValue.substr(0, 4);
+            if (CtConst::LINK_TYPE_WEBS == linkType)
+            {
+                rTextTag->property_foreground() = _pCtConfig->colLinkWebs;
+            }
+            else if (CtConst::LINK_TYPE_NODE == linkType)
+            {
+                rTextTag->property_foreground() = _pCtConfig->colLinkNode;
+            }
+            else if (CtConst::LINK_TYPE_FILE == linkType)
+            {
+                rTextTag->property_foreground() = _pCtConfig->colLinkFile;
+            }
+            else if (CtConst::LINK_TYPE_FOLD == linkType)
+            {
+                rTextTag->property_foreground() = _pCtConfig->colLinkFold;
+            }
+            else
+            {
+                identified = false;
+            }
+        }
+        else
+        {
+            identified = false;
+        }
+        if (not identified)
+        {
+            std::cerr << "!! unsupported propertyName=" << propertyName << " propertyValue=" << propertyValue << std::endl;
+        }
+        _pGtkTextTagTable->add(rTextTag);
+    }
+    return tagName;
+}
+
+// Get the tooltip for the underlying link
+Glib::ustring CtMainWin::sourceview_hovering_link_get_tooltip(const Glib::ustring& link)
+{
+    Glib::ustring tooltip;
+    auto vec = str::split(link, " ");
+    if (vec[0] == CtConst::LINK_TYPE_FILE or vec[0] == CtConst::LINK_TYPE_FOLD)
+        tooltip = Glib::Base64::decode(vec[1]);
+    else
+    {
+        if (vec[0] == CtConst::LINK_TYPE_NODE)
+            tooltip = _uCtTreestore->get_node_name_from_node_id(std::stol(vec[1]));
+        else
+            tooltip = str::replace(vec[1], "amp;", "");
+        if (vec.size() >= 3)
+        {
+            if (vec.size() == 3) tooltip += "#" + vec[2];
+            else
+                tooltip += "#" + link.substr(vec[0].length() + vec[1].length() + 2);
+        }
+    }
+    return tooltip;
+}
+
+// Try to Select a Word Forward/Backward the Cursor
+bool CtMainWin::apply_tag_try_automatic_bounds(Glib::RefPtr<Gtk::TextBuffer> text_buffer, Gtk::TextIter iter_start)
+{
+    Gtk::TextIter iter_end = iter_start;
+    auto curr_char = iter_end.get_char();
+    auto re = Glib::Regex::create("\\w");
+    // 1) select alphanumeric + special
+    bool match = re->match(Glib::ustring(1, curr_char));
+    if (not match and _pCtConfig->selwordChars.find(curr_char) == Glib::ustring::npos) {
+        iter_start.backward_char();
+        iter_end.backward_char();
+        curr_char = iter_end.get_char();
+        match = re->match(Glib::ustring(1, curr_char));
+        if (not match and _pCtConfig->selwordChars.find(curr_char) == Glib::ustring::npos)
+            return false;
+    }
+    while (match or _pCtConfig->selwordChars.find(curr_char) != Glib::ustring::npos) {
+        if (not iter_end.forward_char()) break; // end of buffer
+        curr_char = iter_end.get_char();
+        match = re->match(Glib::ustring(1, curr_char));
+    }
+    iter_start.backward_char();
+    curr_char = iter_start.get_char();
+    match = re->match(Glib::ustring(1, curr_char));
+    while (match or _pCtConfig->selwordChars.find(curr_char) != Glib::ustring::npos) {
+        if (not iter_start.backward_char()) break; // start of buffer
+        curr_char = iter_start.get_char();
+        match = re->match(Glib::ustring(1, curr_char));
+    }
+    if (not match and _pCtConfig->selwordChars.find(curr_char) == Glib::ustring::npos)
+        iter_start.forward_char();
+    // 2) remove non alphanumeric from borders
+    iter_end.backward_char();
+    curr_char = iter_end.get_char();
+    while (_pCtConfig->selwordChars.find(curr_char) != Glib::ustring::npos) {
+        if (not iter_end.backward_char()) break; // start of buffer
+        curr_char = iter_end.get_char();
+    }
+    iter_end.forward_char();
+    curr_char = iter_start.get_char();
+    while (_pCtConfig->selwordChars.find(curr_char) != Glib::ustring::npos) {
+        if (not iter_start.forward_char()) break; // end of buffer
+        curr_char = iter_start.get_char();
+    }
+    if (iter_end.compare(iter_start) > 0) {
+        text_buffer->move_mark(text_buffer->get_insert(), iter_start);
+        text_buffer->move_mark(text_buffer->get_selection_bound(), iter_end);
+        return true;
+    }
+    return false;
+}
+
+std::string CtMainWin::get_font_css(const std::string& fontStr)
+{
+    g_autofree gchar* pFontCss = g_strdup_printf(
+        "textview text {"
+        "    font-family: %s;"
+        "    font-size: %spx;"
+        "}", CtFontUtil::getFontFamily(fontStr).c_str(), CtFontUtil::getFontSizeStr(fontStr).c_str());
+    std::string fontCss(pFontCss);
+    return fontCss;
+}
+
+const std::string& CtMainWin::get_font_for_syntax_highlighting(const std::string& syntaxHighlighting)
+{
+    if (0 == syntaxHighlighting.compare(CtConst::RICH_TEXT_ID))
+    {
+        return _pCtConfig->rtFont;
+    }
+    if (0 == syntaxHighlighting.compare(CtConst::PLAIN_TEXT_ID))
+    {
+        return _pCtConfig->ptFont;
+    }
+    return _pCtConfig->codeFont;
+}
+
+std::string CtMainWin::get_font_css_for_syntax_highlighting(const std::string& syntaxHighlighting)
+{
+    return get_font_css(get_font_for_syntax_highlighting(syntaxHighlighting));
+}
+
 void CtMainWin::_reset_CtTreestore_CtTreeview()
 {
     _prevTreeIter = CtTreeIter();
