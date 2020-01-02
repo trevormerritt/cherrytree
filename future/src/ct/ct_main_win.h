@@ -205,6 +205,7 @@ private:
     std::unique_ptr<CtTreeStore> _uCtTreestore;
     std::unique_ptr<CtTreeView>  _uCtTreeview;
     CtTextView                   _ctTextview;
+    std::unique_ptr<CtPairCodeboxMainWin> _uCtPairCodeboxMainWin;
 
     struct CtCurrFile
     {

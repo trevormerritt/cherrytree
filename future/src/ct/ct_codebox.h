@@ -45,6 +45,7 @@ protected:
     std::string _syntaxHighlighting;
     Glib::RefPtr<Gsv::Buffer> _rTextBuffer{nullptr};
     CtTextView _ctTextview;
+    std::unique_ptr<CtPairCodeboxMainWin> _uCtPairCodeboxMainWin;
 };
 
 class CtCodebox : public CtAnchoredWidget, public CtTextCell

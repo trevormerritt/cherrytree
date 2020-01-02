@@ -49,6 +49,7 @@ public:
     static CtMainWin* pCtMainWin;
 
 private:
+    CtMainWin* _get_CtMainWin();
     void _cut_clipboard(Gtk::TextView* pTextView, CtCodebox* pCodebox);
     void _copy_clipboard(Gtk::TextView* pTextView, CtCodebox* pCodebox);
     void _paste_clipboard(Gtk::TextView* pTextView, CtCodebox* pCodebox);

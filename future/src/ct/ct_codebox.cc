@@ -129,8 +129,9 @@ CtCodebox::CtCodebox(CtMainWin* pCtMainWin,
         }
         return false;
     });
-    g_signal_connect(G_OBJECT(_ctTextview.gobj()), "cut-clipboard", G_CALLBACK(CtClipboard::on_cut_clipboard), this /*from_codebox*/);
-    g_signal_connect(G_OBJECT(_ctTextview.gobj()), "copy-clipboard", G_CALLBACK(CtClipboard::on_copy_clipboard), this /*from_codebox*/);
+    _uCtPairCodeboxMainWin.reset(new CtPairCodeboxMainWin{this, _pCtMainWin});
+    g_signal_connect(G_OBJECT(_ctTextview.gobj()), "cut-clipboard", G_CALLBACK(CtClipboard::on_cut_clipboard), _uCtPairCodeboxMainWin.get());
+    g_signal_connect(G_OBJECT(_ctTextview.gobj()), "copy-clipboard", G_CALLBACK(CtClipboard::on_copy_clipboard), _uCtPairCodeboxMainWin.get());
 
     // todo: maybe find the better solution
     //_scrolledwindow.get_vscrollbar()->signal_event_after().connect(sigc::mem_fun(*this, &CtCodebox::_onVScrollEventAfter));
