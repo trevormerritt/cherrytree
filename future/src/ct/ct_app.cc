@@ -46,7 +46,7 @@ CtApp::CtApp() : Gtk::Application("com.giuspen.cherrytree", Gio::APPLICATION_HAN
 
     _rCssProvider = Gtk::CssProvider::create();
 
-    _uCtMenu.reset(new CtMenu());
+    _uCtMenu.reset(new CtMenu(_uCtCfg.get()));
     _uCtMenu->init_actions(this, _uCtActions.get());
 }
 
@@ -88,7 +88,7 @@ CtMainWin* CtApp::create_appwindow()
                                           _uCtMenu.get(),
                                           _rIcontheme.get(),
                                           _rTextTagTable,
-                                          _rCssProvider.get(),
+                                          _rCssProvider,
                                           _rLanguageManager.get(),
                                           _rStyleSchemeManager.get());
     CtApp::_uCtActions->init(pCtMainWin);

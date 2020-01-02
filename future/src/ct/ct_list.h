@@ -43,10 +43,15 @@ struct CtTextRange
     int leading_chars_num = 0;
 };
 
+class CtMainWin;
+
 class CtList
 {
 public:
-    CtList(Glib::RefPtr<Gtk::TextBuffer> curr_buffer) : _curr_buffer(curr_buffer) {}
+    CtList(CtMainWin* pCtMainWin,
+           Glib::RefPtr<Gtk::TextBuffer> curr_buffer)
+     : _pCtMainWin(pCtMainWin),
+       _curr_buffer(curr_buffer) {}
 
     void        list_handler(CtListType target_list_num_id);
     CtTextRange list_check_n_remove_old_list_type_leading(Gtk::TextIter iter_start, Gtk::TextIter iter_end);
@@ -64,5 +69,6 @@ public:
     void        todo_lists_old_to_new_conversion();
 
 private:
+    CtMainWin* _pCtMainWin;
     Glib::RefPtr<Gtk::TextBuffer> _curr_buffer;
 };

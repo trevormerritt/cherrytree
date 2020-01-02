@@ -20,6 +20,8 @@
  */
 
 #include "ct_list.h"
+#include "ct_const.h"
+#include "ct_main_win.h"
 #include <gtkmm/textbuffer.h>
 
 /*

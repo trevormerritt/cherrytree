@@ -1681,7 +1681,7 @@ bool CtDialogs::node_prop_dialog(const Glib::ustring &title,
     fg_colorbutton.signal_pressed().connect([&pCtMainWin, &fg_colorbutton]()
     {
         Gdk::RGBA ret_color = fg_colorbutton.get_rgba();
-        if (CtDialogs::color_pick_dialog(*pCtMainWin, ret_color))
+        if (CtDialogs::color_pick_dialog(pCtMainWin, ret_color))
         {
             fg_colorbutton.set_rgba(ret_color);
         }

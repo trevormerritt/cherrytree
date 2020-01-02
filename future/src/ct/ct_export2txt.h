@@ -28,7 +28,7 @@
 class CtExport2Txt
 {
 public:
-    CtExport2Txt();
+    CtExport2Txt(CtMainWin* pCtMainWin);
 
 public:
     Glib::ustring node_export_to_txt(Glib::RefPtr<Gtk::TextBuffer> text_buffer, std::pair<int, int> sel_range,
@@ -40,4 +40,5 @@ public:
 private:
     Glib::ustring _plain_process_slot(int start_offset, int end_offset, Glib::RefPtr<Gtk::TextBuffer> curr_buffer, bool check_link_target);
     Glib::ustring _tag_link_in_given_iter(Gtk::TextIter iter);
+    CtMainWin* _pCtMainWin;
 };

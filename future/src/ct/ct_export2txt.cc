@@ -20,10 +20,11 @@
  */
 
 #include "ct_export2txt.h"
+#include "ct_main_win.h"
 
-CtExport2Txt::CtExport2Txt()
+CtExport2Txt::CtExport2Txt(CtMainWin* pCtMainWin)
+ : _pCtMainWin(pCtMainWin)
 {
-
 }
 
 // Export the Selected Node To Txt
@@ -31,7 +32,7 @@ Glib::ustring CtExport2Txt::node_export_to_txt(Glib::RefPtr<Gtk::TextBuffer> tex
                                                bool check_link_target /*=false*/, Glib::ustring /*filepath*/ /*=""*/, CtTreeIter* tree_iter_for_node_name /*=nullptr*/)
 {
     Glib::ustring plain_text;
-    std::list<CtAnchoredWidget*> widgets = CtApp::P_ctActions->getCtMainWin()->curr_tree_iter().get_embedded_pixbufs_tables_codeboxes(sel_range);
+    std::list<CtAnchoredWidget*> widgets = _pCtMainWin->curr_tree_iter().get_embedded_pixbufs_tables_codeboxes(sel_range);
 
     int start_offset = sel_range.first >= 0 ? sel_range.first : 0;
     for (CtAnchoredWidget* widget: widgets)
@@ -102,7 +103,7 @@ Glib::ustring CtExport2Txt::_plain_process_slot(int start_offset, int end_offset
         Glib::ustring end_link = _tag_link_in_given_iter(curr_buffer->get_iter_at_offset(end_offset-1));
         if (start_link !="" && start_link == middle_link && middle_link == end_link && !str::startswith(start_link, "node"))
         {
-            return CtMiscUtil::sourceview_hovering_link_get_tooltip(start_link);
+            return _pCtMainWin->sourceview_hovering_link_get_tooltip(start_link);
         }
         else
         {

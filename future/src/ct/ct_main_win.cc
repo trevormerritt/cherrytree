@@ -32,7 +32,7 @@ CtMainWin::CtMainWin(CtConfig*        pCtConfig,
                      CtMenu*          pCtMenu,
                      Gtk::IconTheme*  pGtkIconTheme,
                      Glib::RefPtr<Gtk::TextTagTable> rGtkTextTagTable,
-                     Gtk::CssProvider*        pGtkCssProvider,
+                     Glib::RefPtr<Gtk::CssProvider> rGtkCssProvider,
                      Gsv::LanguageManager*    pGsvLanguageManager,
                      Gsv::StyleSchemeManager* pGsvStyleSchemeManager)
  : Gtk::ApplicationWindow(),
@@ -42,7 +42,7 @@ CtMainWin::CtMainWin(CtConfig*        pCtConfig,
    _pCtMenu(pCtMenu),
    _pGtkIconTheme(pGtkIconTheme),
    _rGtkTextTagTable(rGtkTextTagTable),
-   _pGtkCssProvider(pGtkCssProvider),
+   _rGtkCssProvider(rGtkCssProvider),
    _pGsvLanguageManager(pGsvLanguageManager),
    _pGsvStyleSchemeManager(pGsvStyleSchemeManager),
    _ctTextview(this)
@@ -1155,7 +1155,7 @@ bool CtMainWin::_on_textview_event(GdkEvent* event)
         if (event->key.keyval == GDK_KEY_ISO_Left_Tab and !curr_buffer->get_has_selection())
         {
             auto iter_insert = curr_buffer->get_insert()->get_iter();
-            CtListInfo list_info = CtList(curr_buffer).get_paragraph_list_info(iter_insert);
+            CtListInfo list_info = CtList(this, curr_buffer).get_paragraph_list_info(iter_insert);
             if (list_info and list_info.level)
             {
                 get_text_view().list_change_level(iter_insert, list_info, false);
@@ -1173,12 +1173,12 @@ bool CtMainWin::_on_textview_event(GdkEvent* event)
                 codebox->get_text_view().grab_focus();
                 return true;
             }
-        CtListInfo list_info = CtList(curr_buffer).get_paragraph_list_info(iter_insert);
+        CtListInfo list_info = CtList(this, curr_buffer).get_paragraph_list_info(iter_insert);
         if (list_info and list_info.type == CtListType::Todo)
             if (_pCtActions->_is_curr_node_not_read_only_or_error())
             {
                 auto iter_start_list = curr_buffer->get_iter_at_offset(list_info.startoffs + 3*list_info.level);
-                CtList(curr_buffer).todo_list_rotate_status(iter_start_list);
+                CtList(this, curr_buffer).todo_list_rotate_status(iter_start_list);
                 return true;
             }
     }
@@ -1223,7 +1223,7 @@ bool CtMainWin::_on_textview_event(GdkEvent* event)
         if (not curr_buffer->get_has_selection())
         {
             auto iter_insert = curr_buffer->get_insert()->get_iter();
-            CtListInfo list_info = CtList(curr_buffer).get_paragraph_list_info(iter_insert);
+            CtListInfo list_info = CtList(this, curr_buffer).get_paragraph_list_info(iter_insert);
             if (list_info)
             {
                 get_text_view().list_change_level(iter_insert, list_info, true);

@@ -21,10 +21,11 @@
 
 #include "ct_export2html.h"
 #include "ct_misc_utils.h"
+#include "ct_main_win.h"
 
-CtExport2Html::CtExport2Html()
+CtExport2Html::CtExport2Html(CtMainWin* pCtMainWin)
+ : _pCtMainWin(pCtMainWin)
 {
-
 }
 
 // Returns the HTML given the text buffer and iter bounds
@@ -35,10 +36,10 @@ Glib::ustring CtExport2Html::selection_export_to_html(Glib::RefPtr<Gtk::TextBuff
     if (syntax_highlighting == CtConst::RICH_TEXT_ID)
     {
         int images_count = 0;
-        Glib::ustring tempFolder = CtApp::P_ctTmp->getHiddenDirPath("IMAGE_TEMP_FOLDER");
+        Glib::ustring tempFolder = _pCtMainWin->get_ct_tmp()->getHiddenDirPath("IMAGE_TEMP_FOLDER");
 
         int start_offset = start_iter.get_offset();
-        std::list<CtAnchoredWidget*> widgets = CtApp::P_ctActions->getCtMainWin()->curr_tree_iter().get_embedded_pixbufs_tables_codeboxes(std::make_pair(start_iter.get_offset(), end_iter.get_offset()));
+        std::list<CtAnchoredWidget*> widgets = _pCtMainWin->curr_tree_iter().get_embedded_pixbufs_tables_codeboxes(std::make_pair(start_iter.get_offset(), end_iter.get_offset()));
         for (CtAnchoredWidget* widget: widgets)
         {
             int end_offset = widget->getOffset();
@@ -360,7 +361,7 @@ Glib::ustring CtExport2Html::_get_href_from_link_prop_val(Glib::ustring link_pro
     }
     else if (vec[0] == CtConst::LINK_TYPE_NODE)
     {
-        CtTreeIter node = CtApp::P_ctActions->getCtMainWin()->curr_tree_store().get_node_from_node_id(std::stol(vec[1]));
+        CtTreeIter node = _pCtMainWin->curr_tree_store().get_node_from_node_id(std::stol(vec[1]));
         if (node)
         {
             href = _get_html_filename(node);

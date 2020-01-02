@@ -40,7 +40,7 @@ private:
     const Glib::ustring HTML_FOOTER = R"HTML(</body></html>)HTML";
 
 public:
-    CtExport2Html();
+    CtExport2Html(CtMainWin* pCtMainWin);
 
     Glib::ustring selection_export_to_html(Glib::RefPtr<Gtk::TextBuffer> text_buffer, Gtk::TextIter start_iter,
                                            Gtk::TextIter end_iter, const Glib::ustring& syntax_highlighting);
@@ -60,5 +60,6 @@ public:
 
     static Glib::ustring _link_process_filepath(const Glib::ustring& filepath_raw);
     static Glib::ustring _link_process_folderpath(const Glib::ustring& folderpath_raw);
+    CtMainWin* _pCtMainWin;
 };
 

@@ -234,7 +234,7 @@ void CtClipboard::from_xml_string_to_buffer(Glib::RefPtr<Gtk::TextBuffer> text_b
             CtXmlRead(_pCtMainWin).get_text_buffer_slot(gsv_buffer, &insert_iter, widgets, child_node, insert_iter.get_offset());
         }
     }
-    if (!widgets.empty())
+    if (not widgets.empty())
     {
         _pCtMainWin->curr_tree_store().addAnchoredWidgets(
                     _pCtMainWin->curr_tree_iter(),
@@ -249,7 +249,7 @@ void CtClipboard::_selection_to_clipboard(Glib::RefPtr<Gtk::TextBuffer> text_buf
 {
     Glib::ustring node_syntax_high = _pCtMainWin->curr_tree_iter().get_node_syntax_highlighting();
     CtImage* pixbuf_target = nullptr;
-    if (!pCodebox && node_syntax_high == CtConst::RICH_TEXT_ID && num_chars == 1)
+    if (not pCodebox && node_syntax_high == CtConst::RICH_TEXT_ID && num_chars == 1)
     {
         std::list<CtAnchoredWidget*> widget_vector = _pCtMainWin->curr_tree_iter().get_embedded_pixbufs_tables_codeboxes(std::make_pair(iter_sel_start.get_offset(), iter_sel_end.get_offset()));
         if (widget_vector.size() > 0)
@@ -262,8 +262,8 @@ void CtClipboard::_selection_to_clipboard(Glib::RefPtr<Gtk::TextBuffer> text_buf
             {
                 CtClipboardData* clip_data = new CtClipboardData();
                 table->to_xml(clip_data->xml_doc.create_root_node("root"), 0);
-                clip_data->html_text = CtExport2Html().table_export_to_html(table);
-                clip_data->plain_text = CtExport2Txt().get_table_plain(table);
+                clip_data->html_text = CtExport2Html(_pCtMainWin).table_export_to_html(table);
+                clip_data->plain_text = CtExport2Txt(_pCtMainWin).get_table_plain(table);
 
                 _set_clipboard_data({TARGET_CTD_TABLE, TARGETS_HTML[0], TARGET_CTD_PLAIN_TEXT}, clip_data);
                 return;
@@ -272,8 +272,8 @@ void CtClipboard::_selection_to_clipboard(Glib::RefPtr<Gtk::TextBuffer> text_buf
             {
                 CtClipboardData* clip_data = new CtClipboardData();
                 codebox->to_xml(clip_data->xml_doc.create_root_node("root"), 0);
-                clip_data->html_text = CtExport2Html().codebox_export_to_html(codebox);
-                clip_data->plain_text = CtExport2Txt().get_codebox_plain(codebox);
+                clip_data->html_text = CtExport2Html(_pCtMainWin).codebox_export_to_html(codebox);
+                clip_data->plain_text = CtExport2Txt(_pCtMainWin).get_codebox_plain(codebox);
 
                 _set_clipboard_data({TARGET_CTD_CODEBOX, TARGETS_HTML[0], TARGET_CTD_PLAIN_TEXT}, clip_data);
                 return;
@@ -282,14 +282,14 @@ void CtClipboard::_selection_to_clipboard(Glib::RefPtr<Gtk::TextBuffer> text_buf
     }
 
     CtClipboardData* clip_data = new CtClipboardData();
-    clip_data->html_text = CtExport2Html().selection_export_to_html(text_buffer, iter_sel_start, iter_sel_end, !pCodebox ? node_syntax_high : CtConst::PLAIN_TEXT_ID);
-    if (!pCodebox && node_syntax_high == CtConst::RICH_TEXT_ID)
+    clip_data->html_text = CtExport2Html(_pCtMainWin).selection_export_to_html(text_buffer, iter_sel_start, iter_sel_end, !pCodebox ? node_syntax_high : CtConst::PLAIN_TEXT_ID);
+    if (not pCodebox && node_syntax_high == CtConst::RICH_TEXT_ID)
     {
         std::vector<std::string> targets_vector;
         std::pair<int,int> text_offsets_range = std::make_pair(iter_sel_start.get_offset(), iter_sel_end.get_offset());
-        clip_data->plain_text = CtExport2Txt().node_export_to_txt(text_buffer, text_offsets_range, true);
+        clip_data->plain_text = CtExport2Txt(_pCtMainWin).node_export_to_txt(text_buffer, text_offsets_range, true);
         clip_data->rich_text = rich_text_get_from_text_buffer_selection(_pCtMainWin->curr_tree_iter(), text_buffer, iter_sel_start, iter_sel_end);
-        if (!CtClipboard::_static_force_plain_text)
+        if (not CtClipboard::_static_force_plain_text)
         {
             targets_vector = {TARGET_CTD_PLAIN_TEXT, TARGET_CTD_RICH_TEXT, TARGETS_HTML[0], TARGETS_HTML[1]};
             if (pixbuf_target)
@@ -307,7 +307,7 @@ void CtClipboard::_selection_to_clipboard(Glib::RefPtr<Gtk::TextBuffer> text_buf
     {
         clip_data->plain_text = text_buffer->get_text(iter_sel_start, iter_sel_end);
         std::vector<std::string> targets_vector;
-        if (!CtClipboard::_static_force_plain_text)
+        if (not CtClipboard::_static_force_plain_text)
             targets_vector = {TARGET_CTD_PLAIN_TEXT, TARGETS_HTML[0], TARGETS_HTML[1]};
         else
             targets_vector = {TARGET_CTD_PLAIN_TEXT};
@@ -335,7 +335,7 @@ void  CtClipboard::_on_clip_data_get(Gtk::SelectionData& selection_data, guint /
         selection_data.set("UTF8_STRING", 8, (const guint8*)clip_data->rich_text.c_str(), (int)clip_data->rich_text.bytes());
     else if (vec::exists(TARGETS_HTML, target))
     {
-        if (!CtConst::IS_WIN_OS)
+        if (not CtConst::IS_WIN_OS)
             selection_data.set(target, 8, (const guint8*)clip_data->html_text.c_str(), (int)clip_data->html_text.bytes());
         else
             if (target == TARGETS_HTML[0])
@@ -460,7 +460,7 @@ void CtClipboard::_on_received_to_codebox(const Gtk::SelectionData& selection_da
     Glib::RefPtr<Gsv::Buffer> gsv_buffer = Glib::RefPtr<Gsv::Buffer>::cast_dynamic(pTextView->get_buffer());
     Gtk::TextIter insert_iter = pTextView->get_buffer()->get_insert()->get_iter();
     CtXmlRead(_pCtMainWin).get_text_buffer_slot(gsv_buffer, &insert_iter, widgets, doc->get_root_node()->get_first_child("codebox"), insert_iter.get_offset());
-    if (!widgets.empty())
+    if (not widgets.empty())
     {
         _pCtMainWin->curr_tree_store().addAnchoredWidgets(
                     _pCtMainWin->curr_tree_iter(),
@@ -493,7 +493,7 @@ void CtClipboard::_on_received_to_table(const Gtk::SelectionData& selection_data
     Glib::RefPtr<Gsv::Buffer> gsv_buffer = Glib::RefPtr<Gsv::Buffer>::cast_dynamic(pTextView->get_buffer());
     Gtk::TextIter insert_iter = pTextView->get_buffer()->get_insert()->get_iter();
     CtXmlRead(_pCtMainWin).get_text_buffer_slot(gsv_buffer, &insert_iter, widgets, doc->get_root_node()->get_first_child("table"), insert_iter.get_offset());
-    if (!widgets.empty())
+    if (not widgets.empty())
     {
         _pCtMainWin->curr_tree_store().addAnchoredWidgets(
                     _pCtMainWin->curr_tree_iter(),
@@ -587,12 +587,12 @@ void CtClipboard::_on_received_to_uri_list(const Gtk::SelectionData& selection_d
             }
             int start_offset = iter_insert.get_offset();
             pTextView->get_buffer()->insert(iter_insert, element + CtConst::CHAR_NEWLINE);
-            if (!property_value.empty())
+            if (not property_value.empty())
             {
                 Gtk::TextIter iter_sel_start = pTextView->get_buffer()->get_iter_at_offset(start_offset);
                 Gtk::TextIter iter_sel_end = pTextView->get_buffer()->get_iter_at_offset(start_offset + (int)element.length());
                 pTextView->get_buffer()->apply_tag_by_name(_pCtMainWin->get_text_tag_name_exist_or_create(CtConst::TAG_LINK, property_value),
-                                                       iter_sel_start, iter_sel_end);
+                                                           iter_sel_start, iter_sel_end);
             }
         }
     }

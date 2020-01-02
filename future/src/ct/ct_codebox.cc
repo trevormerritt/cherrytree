@@ -261,7 +261,7 @@ bool CtCodebox::_on_key_press_event(GdkEventKey* event)
         if (not text_buffer->get_has_selection())
         {
             Gtk::TextIter iter_insert = text_buffer->get_insert()->get_iter();
-            CtListInfo list_info = CtList(text_buffer).get_paragraph_list_info(iter_insert);
+            CtListInfo list_info = CtList(_pCtMainWin, text_buffer).get_paragraph_list_info(iter_insert);
             bool backward = event->state & Gdk::SHIFT_MASK;
             if (list_info)
             {

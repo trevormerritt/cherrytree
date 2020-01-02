@@ -23,6 +23,8 @@
 #include "ct_misc_utils.h"
 #include "ct_const.h"
 #include "ct_main_win.h"
+#include "ct_actions.h"
+#include <glib/gstdio.h>
 
 CtTmp::CtTmp()
 {
@@ -96,7 +98,7 @@ CtAnchoredWidget::~CtAnchoredWidget()
 
 void CtAnchoredWidget::updateJustification(const Gtk::TextIter& textIter)
 {
-    updateJustification(get_text_iter_alignment(textIter));
+    updateJustification(CtTextIterUtil::get_text_iter_alignment(textIter, _pCtMainWin));
 }
 
 void CtAnchoredWidget::insertInTextBuffer(Glib::RefPtr<Gsv::Buffer> rTextBuffer)
@@ -107,7 +109,7 @@ void CtAnchoredWidget::insertInTextBuffer(Glib::RefPtr<Gsv::Buffer> rTextBuffer)
         Gtk::TextIter textIterStart = rTextBuffer->get_iter_at_child_anchor(_rTextChildAnchor);
         Gtk::TextIter textIterEnd = textIterStart;
         textIterEnd.forward_char();
-        Glib::ustring tagName = CtMiscUtil::get_text_tag_name_exist_or_create(CtConst::TAG_JUSTIFICATION, _justification);
+        Glib::ustring tagName = _pCtMainWin->get_text_tag_name_exist_or_create(CtConst::TAG_JUSTIFICATION, _justification);
         rTextBuffer->apply_tag_by_name(tagName, textIterStart, textIterEnd);
     }
 }
@@ -130,6 +132,7 @@ void CtTreeView::set_cursor_safe(const Gtk::TreeIter& iter)
 
 
 CtTextView::CtTextView(CtMainWin* pCtMainWin)
+ : _pCtMainWin(pCtMainWin)
 {
     //set_sensitive(false);
     set_smart_home_end(Gsv::SMART_HOME_END_AFTER);
@@ -234,7 +237,7 @@ void CtTextView::set_selection_at_offset_n_delta(int offset, int delta, Glib::Re
 void CtTextView::_setFontForSyntax(const std::string& syntaxHighlighting)
 {
     Glib::RefPtr<Gtk::StyleContext> rStyleContext = get_style_context();
-    std::string fontCss = CtFontUtil::get_font_css_for_syntax_highlighting(syntaxHighlighting);
+    std::string fontCss = _pCtMainWin->get_font_css_for_syntax_highlighting(syntaxHighlighting);
     _pCtMainWin->get_css_provider()->load_from_data(fontCss);
     rStyleContext->add_provider(_pCtMainWin->get_css_provider(), GTK_STYLE_PROVIDER_PRIORITY_USER);
 }
@@ -248,11 +251,11 @@ void CtTextView::list_change_level(Gtk::TextIter iter_insert, const CtListInfo& 
     _pCtMainWin->get_ct_actions()->getCtMainWin()->user_active() = false;
 
     int curr_offset = list_info.startoffs;
-    int end_offset = CtList(get_buffer()).get_multiline_list_element_end_offset(iter_insert, list_info);
+    int end_offset = CtList(_pCtMainWin, get_buffer()).get_multiline_list_element_end_offset(iter_insert, list_info);
     int curr_level = list_info.level;
     int next_level = level_increase ? curr_level+1 : curr_level-1;
     Gtk::TextIter iter_start = get_buffer()->get_iter_at_offset(curr_offset);
-    CtListInfo prev_list_info = CtList(get_buffer()).get_prev_list_info_on_level(iter_start, next_level);
+    CtListInfo prev_list_info = CtList(_pCtMainWin, get_buffer()).get_prev_list_info_on_level(iter_start, next_level);
     // print prev_list_info
     if (list_info.type != CtListType::Todo)
     {
@@ -286,7 +289,7 @@ void CtTextView::list_change_level(Gtk::TextIter iter_insert, const CtListInfo& 
                 index = (next_level + idx_offset) % CtConst::NUM_CHARS_LISTNUM;
             }
             Glib::ustring text_to = std::to_string(this_num) + Glib::ustring(1, CtConst::CHARS_LISTNUM[(size_t)index]) + CtConst::CHAR_SPACE;
-            replace_text(text_to, bull_offset, bull_offset+ CtList(get_buffer()).get_leading_chars_num(list_info.type, list_info.num));
+            replace_text(text_to, bull_offset, bull_offset + CtList(_pCtMainWin, get_buffer()).get_leading_chars_num(list_info.type, list_info.num));
         }
     }
     iter_start = get_buffer()->get_iter_at_offset(curr_offset);
@@ -305,7 +308,7 @@ void CtTextView::list_change_level(Gtk::TextIter iter_insert, const CtListInfo& 
             end_offset -= 3;
             iter_start = get_buffer()->get_iter_at_offset(curr_offset+1);
         }
-        if (not CtList(get_buffer()).char_iter_forward_to_newline(iter_start) or not iter_start.forward_char())
+        if (not CtList(_pCtMainWin, get_buffer()).char_iter_forward_to_newline(iter_start) or not iter_start.forward_char())
             break;
         curr_offset = iter_start.get_offset();
     }
@@ -351,9 +354,9 @@ void CtTextView::for_event_after_button_press(GdkEvent* event)
                 return;
             }
         }
-        if (CtList(text_buffer).is_list_todo_beginning(text_iter))
+        if (CtList(_pCtMainWin, text_buffer).is_list_todo_beginning(text_iter))
             if (_pCtMainWin->get_ct_actions()->_is_curr_node_not_read_only_or_error())
-                CtList(text_buffer).todo_list_rotate_status(text_iter);
+                CtList(_pCtMainWin, text_buffer).todo_list_rotate_status(text_iter);
     }
     else if (event->button.button == 3 and not text_buffer->get_has_selection())
     {
@@ -423,7 +426,7 @@ void CtTextView::for_event_after_key_press(GdkEvent* event, const Glib::ustring&
             Gtk::TextIter iter_insert = text_buffer->get_insert()->get_iter();
             Gtk::TextIter iter_start = iter_insert;
             iter_start.backward_char();
-            CtListInfo list_info = CtList(text_buffer).get_paragraph_list_info(iter_start);
+            CtListInfo list_info = CtList(_pCtMainWin, text_buffer).get_paragraph_list_info(iter_start);
             if (list_info)
                 text_buffer->insert(iter_insert, Glib::ustring(3*(1+(size_t)list_info.level), CtConst::CHAR_SPACE[0]));
         }
@@ -452,7 +455,7 @@ void CtTextView::for_event_after_key_press(GdkEvent* event, const Glib::ustring&
             if (iter_start.get_char() != CtConst::CHAR_NEWLINE[0]) return;
             if (iter_start.backward_char() and iter_start.get_char() == CtConst::CHAR_NEWLINE[0])
                 return; // former was an empty row
-            CtListInfo list_info = CtList(text_buffer).get_paragraph_list_info(iter_start);
+            CtListInfo list_info = CtList(_pCtMainWin, text_buffer).get_paragraph_list_info(iter_start);
             if (not list_info)
             {
                 if (config->autoIndent)
@@ -465,7 +468,7 @@ void CtTextView::for_event_after_key_press(GdkEvent* event, const Glib::ustring&
             }
             // possible enter on empty list element
             int insert_offset = iter_insert.get_offset();
-            int chars_to_startoffs = 1 + CtList(text_buffer).get_leading_chars_num(list_info.type, list_info.num) + 3*list_info.level;
+            int chars_to_startoffs = 1 + CtList(_pCtMainWin, text_buffer).get_leading_chars_num(list_info.type, list_info.num) + 3*list_info.level;
             if ((insert_offset - list_info.startoffs) == chars_to_startoffs)
             {
                 Gtk::TextIter iter_list_quit;
@@ -497,21 +500,21 @@ void CtTextView::for_event_after_key_press(GdkEvent* event, const Glib::ustring&
                 text_buffer->insert(iter_insert, pre_spaces + std::to_string(new_num) + CtConst::CHARS_LISTNUM[(size_t)index] + CtConst::CHAR_SPACE);
                 new_num += 1;
                 iter_start = text_buffer->get_iter_at_offset(insert_offset);
-                CtList(text_buffer).char_iter_forward_to_newline(iter_start);
-                list_info = CtList(text_buffer).get_next_list_info_on_level(iter_start, curr_level);
+                CtList(_pCtMainWin, text_buffer).char_iter_forward_to_newline(iter_start);
+                list_info = CtList(_pCtMainWin, text_buffer).get_next_list_info_on_level(iter_start, curr_level);
                 // print list_info
                 while (list_info and list_info.type == CtListType::Number)
                 {
                     iter_start = text_buffer->get_iter_at_offset(list_info.startoffs);
-                    int end_offset = CtList(text_buffer).get_multiline_list_element_end_offset(iter_start, list_info);
+                    int end_offset = CtList(_pCtMainWin, text_buffer).get_multiline_list_element_end_offset(iter_start, list_info);
                     Gtk::TextIter iter_end = text_buffer->get_iter_at_offset(end_offset);
-                    CtTextRange range = CtList(text_buffer).list_check_n_remove_old_list_type_leading(iter_start, iter_end);
+                    CtTextRange range = CtList(_pCtMainWin, text_buffer).list_check_n_remove_old_list_type_leading(iter_start, iter_end);
                     end_offset -= range.leading_chars_num;
                     text_buffer->insert(iter_start, std::to_string(new_num) + Glib::ustring(1, CtConst::CHARS_LISTNUM[(size_t)index]) + CtConst::CHAR_SPACE);
-                    end_offset += CtList(text_buffer).get_leading_chars_num(list_info.type, new_num);
+                    end_offset += CtList(_pCtMainWin, text_buffer).get_leading_chars_num(list_info.type, new_num);
                     iter_start = text_buffer->get_iter_at_offset(end_offset);
                     new_num += 1;
-                    list_info = CtList(text_buffer).get_next_list_info_on_level(iter_start, curr_level);
+                    list_info = CtList(_pCtMainWin, text_buffer).get_next_list_info_on_level(iter_start, curr_level);
                 }
             }
         }
@@ -608,7 +611,7 @@ void CtTextView::cursor_and_tooltips_handler(int x, int y)
     Gtk::TextIter text_iter;
     get_iter_at_location(text_iter, x, y);
 
-    if (CtList(get_buffer()).is_list_todo_beginning(text_iter))
+    if (CtList(_pCtMainWin, get_buffer()).is_list_todo_beginning(text_iter))
     {
         get_window(Gtk::TEXT_WINDOW_TEXT)->set_cursor(Gdk::Cursor::create(Gdk::X_CURSOR));
         set_tooltip_text("");
@@ -623,7 +626,7 @@ void CtTextView::cursor_and_tooltips_handler(int x, int y)
         {
             find_link = true;
             hovering_link_iter_offset = text_iter.get_offset();
-            tooltip = CtMiscUtil::sourceview_hovering_link_get_tooltip(tag_name.substr(5));
+            tooltip = _pCtMainWin->sourceview_hovering_link_get_tooltip(tag_name.substr(5));
             break;
         }
     }
@@ -639,7 +642,7 @@ void CtTextView::cursor_and_tooltips_handler(int x, int y)
                     if (not image->get_link().empty())
                     {
                         hovering_link_iter_offset = text_iter.get_offset();
-                        tooltip = CtMiscUtil::sourceview_hovering_link_get_tooltip(image->get_link());
+                        tooltip = _pCtMainWin->sourceview_hovering_link_get_tooltip(image->get_link());
                         break;
                     }
         }
