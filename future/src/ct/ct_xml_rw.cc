@@ -132,9 +132,11 @@ CtXmlNodeType CtXmlRead::_node_get_type_from_name(const Glib::ustring& xmlNodeNa
     return retXmlNodeType;
 }
 
-void CtXmlRead::get_text_buffer_slot(Glib::RefPtr<Gsv::Buffer>& rTextBuffer, Gtk::TextIter* insertIter,
+void CtXmlRead::get_text_buffer_slot(Glib::RefPtr<Gsv::Buffer>& rTextBuffer,
+                                     Gtk::TextIter* insertIter,
                                      std::list<CtAnchoredWidget*>& anchoredWidgets,
-                                     xmlpp::Node* pNodeParent, int forceCharOffset /*=-1*/)
+                                     xmlpp::Node* pNodeParent,
+                                     int forceCharOffset /*=-1*/)
 {
     CtXmlNodeType xmlNodeType = _node_get_type_from_name(pNodeParent->get_name());
     if (CtXmlNodeType::RichText == xmlNodeType)

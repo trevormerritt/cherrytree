@@ -48,7 +48,7 @@ protected:
 class CtXmlRead : public CtDocRead, public xmlpp::DomParser
 {
 public:
-    CtXmlRead(CtMainWin* pCtMainWin, const char* filepath, const char* textContent);
+    CtXmlRead(CtMainWin* pCtMainWin, const char* filepath=nullptr, const char* textContent=nullptr);
     virtual ~CtXmlRead() override;
     bool read_populate_tree(const Gtk::TreeIter* pParentIter=nullptr) override;
     Glib::RefPtr<Gsv::Buffer> get_text_buffer(const std::string& syntax,

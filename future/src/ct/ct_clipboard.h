@@ -38,7 +38,7 @@ struct CtClipboardData
 class CtClipboard
 {
 public:
-    CtClipboard();
+    CtClipboard(CtMainWin* pCtMainWin);
 
 public:
     static void on_cut_clipboard(GtkTextView* pTextView, gpointer codebox);
@@ -82,6 +82,7 @@ private:
 
 private:
     static bool _static_force_plain_text;
+    CtMainWin*   _pCtMainWin;
 };
 
 

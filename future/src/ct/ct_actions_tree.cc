@@ -113,7 +113,7 @@ void CtActions::_node_add(bool duplicate, bool add_child)
         nodeData.customIconId = 0;
         nodeData.syntax = CtConst::RICH_TEXT_ID;
         nodeData.isRO = false;
-        if (not CtDialogs::node_prop_dialog(title, *_pCtMainWin, nodeData, _pCtMainWin->curr_tree_store().get_used_tags()))
+        if (not CtDialogs::node_prop_dialog(title, _pCtMainWin, nodeData, _pCtMainWin->curr_tree_store().get_used_tags()))
             return;
     }
     _node_add_with_data(_pCtMainWin->curr_tree_iter(), nodeData, add_child);
@@ -220,7 +220,7 @@ void CtActions::node_edit()
     CtNodeData nodeData;
     _pCtMainWin->curr_tree_store().get_node_data(_pCtMainWin->curr_tree_iter(), nodeData);
     CtNodeData newData = nodeData;
-    if (not CtDialogs::node_prop_dialog(_("Node Properties"), *_pCtMainWin, newData, _pCtMainWin->curr_tree_store().get_used_tags()))
+    if (not CtDialogs::node_prop_dialog(_("Node Properties"), _pCtMainWin, newData, _pCtMainWin->curr_tree_store().get_used_tags()))
         return;
 
     _pCtMainWin->get_ct_config()->syntaxHighlighting = newData.syntax;
@@ -334,7 +334,7 @@ void CtActions::node_change_father()
 {
     if (!_is_there_selected_node_or_error()) return;
     CtTreeIter old_father_iter = _pCtMainWin->curr_tree_iter().parent();
-    CtTreeIter father_iter = _pCtMainWin->curr_tree_store().to_ct_tree_iter(CtDialogs::choose_node_dialog(*_pCtMainWin,
+    CtTreeIter father_iter = _pCtMainWin->curr_tree_store().to_ct_tree_iter(CtDialogs::choose_node_dialog(_pCtMainWin,
                                    _pCtMainWin->curr_tree_view(), _("Select the New Parent"), &_pCtMainWin->curr_tree_store(), _pCtMainWin->curr_tree_iter()));
     if (!father_iter) return;
     gint64 curr_node_id = _pCtMainWin->curr_tree_iter().get_node_id();

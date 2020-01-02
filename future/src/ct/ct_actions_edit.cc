@@ -79,7 +79,7 @@ void CtActions::codebox_handle()
         _curr_buffer()->get_selection_bounds(iter_sel_start, iter_sel_end);
         textContent = iter_sel_start.get_text(iter_sel_end);
     }
-    if (not CtDialogs::codeboxhandle_dialog(*_pCtMainWin, _("Insert a CodeBox")))
+    if (not CtDialogs::codeboxhandle_dialog(_pCtMainWin, _("Insert a CodeBox")))
         return;
 
     if (not textContent.empty())
@@ -256,14 +256,14 @@ void CtActions::text_row_selection_duplicate()
         }
         else
         {
-            Glib::ustring rich_text = CtClipboard().rich_text_get_from_text_buffer_selection(_pCtMainWin->curr_tree_iter(), text_buffer, iter_start, iter_end);
+            Glib::ustring rich_text = CtClipboard(_pCtMainWin).rich_text_get_from_text_buffer_selection(_pCtMainWin->curr_tree_iter(), text_buffer, iter_start, iter_end);
             if (rich_text.find(CtConst::CHAR_NEWLINE) != Glib::ustring::npos)
             {
                 text_buffer->insert(iter_end, CtConst::CHAR_NEWLINE);
                 iter_end = proof.text_buffer->get_iter_at_offset(sel_end_offset+1);
                 text_buffer->move_mark(proof.text_buffer->get_insert(), iter_end);
             }
-            CtClipboard().from_xml_string_to_buffer(text_buffer, rich_text);
+            CtClipboard(_pCtMainWin).from_xml_string_to_buffer(text_buffer, rich_text);
         }
         text_buffer->select_range(text_buffer->get_iter_at_offset(sel_start_offset),
                                  text_buffer->get_iter_at_offset(sel_end_offset));
@@ -286,12 +286,12 @@ void CtActions::text_row_selection_duplicate()
             }
             else
             {
-                Glib::ustring rich_text = CtClipboard().rich_text_get_from_text_buffer_selection(_pCtMainWin->curr_tree_iter(), text_buffer, range.iter_start, range.iter_end);
+                Glib::ustring rich_text = CtClipboard(_pCtMainWin).rich_text_get_from_text_buffer_selection(_pCtMainWin->curr_tree_iter(), text_buffer, range.iter_start, range.iter_end);
                 int sel_end_offset = range.iter_end.get_offset();
                 text_buffer->insert(range.iter_end, CtConst::CHAR_NEWLINE);
                 range.iter_end = text_buffer->get_iter_at_offset(sel_end_offset+1);
                 text_buffer->move_mark(text_buffer->get_insert(), range.iter_end);
-                CtClipboard().from_xml_string_to_buffer(proof.text_buffer, rich_text);
+                CtClipboard(_pCtMainWin).from_xml_string_to_buffer(proof.text_buffer, rich_text);
                 text_buffer->place_cursor(text_buffer->get_iter_at_offset(cursor_offset));
             }
         }
@@ -348,7 +348,7 @@ void CtActions::text_row_up()
     }
     else
     {
-        Glib::ustring rich_text = CtClipboard().rich_text_get_from_text_buffer_selection(_pCtMainWin->curr_tree_iter(),
+        Glib::ustring rich_text = CtClipboard(_pCtMainWin).rich_text_get_from_text_buffer_selection(_pCtMainWin->curr_tree_iter(),
                                                                                          text_buffer, range.iter_start, range.iter_end, 'n', true /*exclude_iter_sel_end*/);
         text_buffer->erase(range.iter_start, range.iter_end);
         destination_iter = text_buffer->get_iter_at_offset(destination_offset);
@@ -370,7 +370,7 @@ void CtActions::text_row_up()
         destination_iter = text_buffer->get_iter_at_offset(destination_offset);
         text_buffer->move_mark(text_buffer->get_insert(), destination_iter);
         // write moved line
-        CtClipboard().from_xml_string_to_buffer(text_buffer, rich_text);
+        CtClipboard(_pCtMainWin).from_xml_string_to_buffer(text_buffer, rich_text);
         if (append_newline)
             text_buffer->insert_at_cursor(CtConst::CHAR_NEWLINE);
         // clear space trick
@@ -432,7 +432,7 @@ void CtActions::text_row_down()
     }
     else
     {
-        Glib::ustring rich_text = CtClipboard().rich_text_get_from_text_buffer_selection(_pCtMainWin->curr_tree_iter(), text_buffer,
+        Glib::ustring rich_text = CtClipboard(_pCtMainWin).rich_text_get_from_text_buffer_selection(_pCtMainWin->curr_tree_iter(), text_buffer,
                                                                                          range.iter_start, range.iter_end, 'n', true /*exclude_iter_sel_end*/);
         text_buffer->erase(range.iter_start, range.iter_end);
         destination_offset -= diff_offsets;
@@ -460,7 +460,7 @@ void CtActions::text_row_down()
         destination_iter = text_buffer->get_iter_at_offset(destination_offset);
         text_buffer->move_mark(text_buffer->get_insert(), destination_iter);
         // write moved line
-        CtClipboard().from_xml_string_to_buffer(text_buffer, rich_text);
+        CtClipboard(_pCtMainWin).from_xml_string_to_buffer(text_buffer, rich_text);
         if (append_newline)
             text_buffer->insert_at_cursor(CtConst::CHAR_NEWLINE);
         // clear space trick
@@ -594,7 +594,7 @@ void CtActions::_text_selection_change_case(gchar change_type)
     }
     else
     {
-        rich_text = CtClipboard().rich_text_get_from_text_buffer_selection(_pCtMainWin->curr_tree_iter(), text_buffer, iter_start, iter_end, change_type);
+        rich_text = CtClipboard(_pCtMainWin).rich_text_get_from_text_buffer_selection(_pCtMainWin->curr_tree_iter(), text_buffer, iter_start, iter_end, change_type);
     }
 
     int start_offset = iter_start.get_offset();
@@ -608,7 +608,7 @@ void CtActions::_text_selection_change_case(gchar change_type)
     else
     {
         text_buffer->move_mark(text_buffer->get_insert(), iter_insert);
-        CtClipboard().from_xml_string_to_buffer(text_buffer, rich_text);
+        CtClipboard(_pCtMainWin).from_xml_string_to_buffer(text_buffer, rich_text);
     }
     text_buffer->select_range(text_buffer->get_iter_at_offset(start_offset),
                               text_buffer->get_iter_at_offset(end_offset));

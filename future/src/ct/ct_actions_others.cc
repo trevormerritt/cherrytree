@@ -51,7 +51,7 @@ void CtActions::anchor_delete()
 // Edit an Anchor
 void CtActions::anchor_edit()
 {
-    if (!_is_curr_node_not_read_only_or_error()) return;
+    if (not _is_curr_node_not_read_only_or_error()) return;
     Gtk::TextIter iter_insert = _curr_buffer()->get_iter_at_child_anchor(curr_anchor_anchor->getTextChildAnchor());
     Gtk::TextIter iter_bound = iter_insert;
     iter_bound.forward_char();
@@ -118,7 +118,7 @@ void CtActions::embfile_open()
     CtFileSystem::external_filepath_open(filepath, false);
     _embfiles_opened[filepath] = CtFileSystem::getmtime(filepath);
 
-    if (!_embfiles_timeout_connection)
+    if (not _embfiles_timeout_connection)
         _embfiles_timeout_connection = Glib::signal_timeout().connect(sigc::mem_fun(*this, &CtActions::_on_embfiles_sentinel_timeout), 500);
 }
 
@@ -136,7 +136,7 @@ void CtActions::image_save()
     if (filename.empty()) return;
 
     _pCtMainWin->get_ct_config()->pickDirImg = Glib::path_get_dirname(filename);
-    if (!str::endswith(filename, ".png")) filename += ".png";
+    if (not str::endswith(filename, ".png")) filename += ".png";
     try {
        curr_image_anchor->save(filename, "png");
     }
@@ -148,7 +148,7 @@ void CtActions::image_save()
 // Edit the selected Image
 void CtActions::image_edit()
 {
-    if (!_is_curr_node_not_read_only_or_error()) return;
+    if (not _is_curr_node_not_read_only_or_error()) return;
     Gtk::TextIter iter_insert = _curr_buffer()->get_iter_at_child_anchor(curr_image_anchor->getTextChildAnchor());
     Gtk::TextIter iter_bound = iter_insert;
     iter_bound.forward_char();
@@ -181,17 +181,17 @@ void CtActions::image_delete()
 // Edit the Link Associated to the Image
 void CtActions::image_link_edit()
 {
-    if (!_is_curr_node_not_read_only_or_error()) return;
+    if (not _is_curr_node_not_read_only_or_error()) return;
     _link_entry = CtDialogs::CtLinkEntry();
     if  (curr_image_anchor->get_link().empty())
         _link_entry.type = CtConst::LINK_TYPE_WEBS; // default value
-    else if (!_links_entries_pre_dialog(curr_image_anchor->get_link(), _link_entry))
+    else if (not _links_entries_pre_dialog(curr_image_anchor->get_link(), _link_entry))
        return;
     CtTreeIter sel_tree_iter = _pCtMainWin->curr_tree_store().get_node_from_node_id(_link_entry.node_id);
-    if (!CtDialogs::link_handle_dialog(*_pCtMainWin, _("Insert/Edit Link"), sel_tree_iter, _link_entry))
+    if (not CtDialogs::link_handle_dialog(*_pCtMainWin, _("Insert/Edit Link"), sel_tree_iter, _link_entry))
         return;
     Glib::ustring property_value = _links_entries_post_dialog(_link_entry);
-    if (!property_value.empty())
+    if (not property_value.empty())
     {
         curr_image_anchor->set_link(property_value);
         curr_image_anchor->update_label_widget();
@@ -203,7 +203,7 @@ void CtActions::image_link_edit()
 // Dismiss the Link Associated to the Image
 void CtActions::image_link_dismiss()
 {
-    if (!_is_curr_node_not_read_only_or_error()) return;
+    if (not _is_curr_node_not_read_only_or_error()) return;
     curr_image_anchor->set_link("");
     curr_image_anchor->update_label_widget();
     _pCtMainWin->update_window_save_needed(CtSaveNeededUpdType::nbuf, true/*new_machine_state*/);
@@ -230,7 +230,7 @@ void CtActions::link_clicked(const Glib::ustring& tag_property_value, bool from_
      else if (vec[0] == CtConst::LINK_TYPE_FILE) // link to file
      {
          Glib::ustring filepath = CtExport2Html::_link_process_filepath(vec[1]);
-         if (!Glib::file_test(filepath, Glib::FILE_TEST_IS_REGULAR))
+         if (not Glib::file_test(filepath, Glib::FILE_TEST_IS_REGULAR))
          {
              CtDialogs::error_dialog(str::format(_("The File Link '%s' is Not Valid"), std::string(filepath)), *_pCtMainWin);
              return;
@@ -242,7 +242,7 @@ void CtActions::link_clicked(const Glib::ustring& tag_property_value, bool from_
      else if (vec[0] == CtConst::LINK_TYPE_FOLD) // link to folder
      {
          Glib::ustring folderpath = CtExport2Html::_link_process_folderpath(vec[1]);
-         if (!Glib::file_test(folderpath, Glib::FILE_TEST_IS_DIR))
+         if (not Glib::file_test(folderpath, Glib::FILE_TEST_IS_DIR))
          {
              CtDialogs::error_dialog(str::format(_("The Folder Link '%s' is Not Valid"), std::string(folderpath)), *_pCtMainWin);
              return;
@@ -254,7 +254,7 @@ void CtActions::link_clicked(const Glib::ustring& tag_property_value, bool from_
      else if (vec[0] == CtConst::LINK_TYPE_NODE) // link to a tree node
      {
          CtTreeIter tree_iter = _pCtMainWin->curr_tree_store().get_node_from_node_id(std::stol(vec[1]));
-         if (!tree_iter)
+         if (not tree_iter)
          {
              CtDialogs::error_dialog(str::format(_("The Link Refers to a Node that Does Not Exist Anymore (Id = %s)"), std::string(vec[1])), *_pCtMainWin);
              return;
@@ -274,7 +274,7 @@ void CtActions::link_clicked(const Glib::ustring& tag_property_value, bool from_
                  if (CtImageAnchor* anchor = dynamic_cast<CtImageAnchor*>(widget))
                      if (anchor->get_anchor_name() == anchor_name)
                          imageAnchor = anchor;
-             if (!imageAnchor)
+             if (not imageAnchor)
              {
                  if (anchor_name.size() > (size_t)CtConst::MAX_TOOLTIP_LINK_CHARS)
                      anchor_name = anchor_name.substr(0, (size_t)CtConst::MAX_TOOLTIP_LINK_CHARS) + "...";
@@ -318,7 +318,7 @@ void CtActions::codebox_delete()
 // Delete CodeBox but keep the Text
 void CtActions::codebox_delete_keeping_text()
 {
-    if (!_is_curr_node_not_read_only_or_error()) return;
+    if (not _is_curr_node_not_read_only_or_error()) return;
     Glib::ustring content = curr_codebox_anchor->get_text_content();
     object_set_selection(curr_codebox_anchor);
     _curr_buffer()->erase_selection(true, _pCtMainWin->get_text_view().get_editable());
@@ -330,7 +330,7 @@ void CtActions::codebox_delete_keeping_text()
 // Change CodeBox Properties
 void CtActions::codebox_change_properties()
 {
-    if (!_is_curr_node_not_read_only_or_error()) return;
+    if (not _is_curr_node_not_read_only_or_error()) return;
     _pCtMainWin->get_ct_config()->codeboxWidth = curr_codebox_anchor->get_frame_width();
     _pCtMainWin->get_ct_config()->codeboxWidthPixels = curr_codebox_anchor->get_width_in_pixels();
     _pCtMainWin->get_ct_config()->codeboxHeight = curr_codebox_anchor->get_frame_height();
@@ -338,7 +338,7 @@ void CtActions::codebox_change_properties()
     _pCtMainWin->get_ct_config()->codeboxMatchBra = curr_codebox_anchor->get_highlight_brackets();
     _pCtMainWin->get_ct_config()->codeboxSynHighl = curr_codebox_anchor->get_syntax_highlighting();
 
-    if (!CtDialogs::codeboxhandle_dialog(*_pCtMainWin, _("Edit CodeBox"))) return;
+    if (not CtDialogs::codeboxhandle_dialog(_pCtMainWin, _("Edit CodeBox"))) return;
 
     curr_codebox_anchor->set_syntax_highlighting(_pCtMainWin->get_ct_config()->codeboxSynHighl,
                                                  _pCtMainWin->get_language_manager());
@@ -357,7 +357,7 @@ void CtActions::exec_code()
 // Load the CodeBox Content From a Text Fil
 void CtActions::codebox_load_from_file()
 {
-    if (!_is_curr_node_not_read_only_or_error()) return;
+    if (not _is_curr_node_not_read_only_or_error()) return;
     CtDialogs::file_select_args args = {.pParentWin=_pCtMainWin, .curr_folder=_pCtMainWin->get_ct_config()->pickDirCbox};
     std::string filepath = CtDialogs::file_select_dialog(args);
     if (filepath.empty()) return;
@@ -444,10 +444,10 @@ void CtActions::_anchor_edit_dialog(CtImageAnchor* anchor, Gtk::TextIter insert_
 // Iteration of the Modification Time Sentinel
 bool CtActions::_on_embfiles_sentinel_timeout()
 {
-    for(auto& item: _embfiles_opened)
+    for(auto& item : _embfiles_opened)
     {
         const Glib::ustring& filepath = item.first;
-        if (!Glib::file_test(filepath, Glib::FILE_TEST_IS_REGULAR))
+        if (not Glib::file_test(filepath, Glib::FILE_TEST_IS_REGULAR))
         {
             std::cout << "embdrop" << filepath;
             _embfiles_opened.erase(filepath);
@@ -460,16 +460,16 @@ bool CtActions::_on_embfiles_sentinel_timeout()
            gint64 node_id = std::stoll(data_vec[0]);
            size_t embfile_id = std::stol(data_vec[1]);
 
-           CtTreeIter tree_iter = _pCtMainWin->curr_tree_store().get_node_from_node_id(node_id);
-           if (!tree_iter) continue;
-           if (tree_iter.get_node_read_only())
-           {
-               CtDialogs::warning_dialog(_("Cannot Edit Embedded File in Read Only Node"), *_pCtMainWin);
-               continue;
-           }
-           _pCtMainWin->curr_tree_view().set_cursor_safe(tree_iter);
-           for (auto& widget: tree_iter.get_all_embedded_widgets())
-           {
+            CtTreeIter tree_iter = _pCtMainWin->curr_tree_store().get_node_from_node_id(node_id);
+            if (not tree_iter) continue;
+            if (tree_iter.get_node_read_only())
+            {
+                CtDialogs::warning_dialog(_("Cannot Edit Embedded File in Read Only Node"), *_pCtMainWin);
+                continue;
+            }
+            _pCtMainWin->curr_tree_view().set_cursor_safe(tree_iter);
+            for (auto& widget: tree_iter.get_all_embedded_widgets())
+            {
                 if (CtImageEmbFile* embFile = dynamic_cast<CtImageEmbFile*>(widget))
                     if (((size_t)embFile->get_data("open_id")) == embfile_id)
                     {
