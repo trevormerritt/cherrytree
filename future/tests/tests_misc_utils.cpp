@@ -28,16 +28,16 @@ TEST_GROUP(MiscUtilsGroup)
 {
 };
 
-TEST(MiscUtilsGroup, isStrTrue)
+TEST(MiscUtilsGroup, is_str_true)
 {
-    CHECK(CtStrUtil::isStrTrue("true"));
-    CHECK(CtStrUtil::isStrTrue("True"));
-    CHECK(CtStrUtil::isStrTrue("TRUE"));
-    CHECK(CtStrUtil::isStrTrue("1"));
-    CHECK(not CtStrUtil::isStrTrue("false"));
-    CHECK(not CtStrUtil::isStrTrue("False"));
-    CHECK(not CtStrUtil::isStrTrue("FALSE"));
-    CHECK(not CtStrUtil::isStrTrue("0"));
+    CHECK(CtStrUtil::is_str_true("true"));
+    CHECK(CtStrUtil::is_str_true("True"));
+    CHECK(CtStrUtil::is_str_true("TRUE"));
+    CHECK(CtStrUtil::is_str_true("1"));
+    CHECK(not CtStrUtil::is_str_true("false"));
+    CHECK(not CtStrUtil::is_str_true("False"));
+    CHECK(not CtStrUtil::is_str_true("FALSE"));
+    CHECK(not CtStrUtil::is_str_true("0"));
 }
 
 TEST(MiscUtilsGroup, str__replace)

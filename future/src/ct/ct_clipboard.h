@@ -38,14 +38,15 @@ struct CtClipboardData
 class CtClipboard
 {
 public:
+    CtClipboard() {} // use from static, need to set pCtMainWin manually just before usage
     CtClipboard(CtMainWin* pCtMainWin);
 
 public:
     static void on_cut_clipboard(GtkTextView* pTextView, gpointer codebox);
     static void on_copy_clipboard(GtkTextView* pTextView, gpointer codebox);
     static void on_paste_clipboard(GtkTextView* pTextView, gpointer codebox);
-
     static void force_plain_text() { _static_force_plain_text = true; }
+    static CtMainWin* pCtMainWin;
 
 private:
     void _cut_clipboard(Gtk::TextView* pTextView, CtCodebox* pCodebox);

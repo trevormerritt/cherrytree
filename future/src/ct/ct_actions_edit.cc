@@ -537,7 +537,7 @@ void CtActions::_image_edit_dialog(Glib::RefPtr<Gdk::Pixbuf> rPixbuf,
     Glib::ustring link = "";
     Glib::ustring image_justification;
     if (iter_bound) { // only in case of modify
-        image_justification = _get_iter_alignment(insert_iter);
+        image_justification = CtTextIterUtil::get_text_iter_alignment(insert_iter, _pCtMainWin);
         int image_offset = insert_iter.get_offset();
         _curr_buffer()->erase(insert_iter, *iter_bound);
         insert_iter = _curr_buffer()->get_iter_at_offset(image_offset);

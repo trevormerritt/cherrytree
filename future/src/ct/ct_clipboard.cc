@@ -43,8 +43,10 @@ const std::vector<Glib::ustring> TARGETS_PLAIN_TEXT = {"UTF8_STRING", "COMPOUND_
 const std::vector<Glib::ustring> TARGETS_IMAGES = {"image/png", "image/jpeg", "image/bmp", "image/tiff", "image/x-MS-bmp", "image/x-bmp"};
 const Glib::ustring TARGET_WINDOWS_FILE_NAME = "FileName";
 
+static std::mutex _mutexStatics;
 
 bool CtClipboard::_static_force_plain_text = false;
+CtMainWin* CtClipboard::pCtMainWin{nullptr};
 
 CtClipboard::CtClipboard(CtMainWin* pCtMainWin)
  : _pCtMainWin(pCtMainWin)
@@ -53,20 +55,32 @@ CtClipboard::CtClipboard(CtMainWin* pCtMainWin)
 
 /*static*/ void CtClipboard::on_cut_clipboard(GtkTextView* pTextView,  gpointer codebox)
 {
-    CtClipboard(_pCtMainWin)._cut_clipboard(Glib::wrap(pTextView), static_cast<CtCodebox*>(codebox));
+    auto clipb = CtClipboard();
+    _mutexStatics.lock();
+    clipb.pCtMainWin = nullptr;
+    clipb._cut_clipboard(Glib::wrap(pTextView), static_cast<CtCodebox*>(codebox));
+    _mutexStatics.unlock();
 }
 
 /*static*/ void CtClipboard::on_copy_clipboard(GtkTextView* pTextView, gpointer codebox)
 {
-    CtClipboard(_pCtMainWin)._copy_clipboard(Glib::wrap(pTextView), static_cast<CtCodebox*>(codebox));
+    auto clipb = CtClipboard();
+    _mutexStatics.lock();
+    clipb.pCtMainWin = nullptr;
+    clipb._copy_clipboard(Glib::wrap(pTextView), static_cast<CtCodebox*>(codebox));
+    _mutexStatics.unlock();
 }
 
 /*static*/ void CtClipboard::on_paste_clipboard(GtkTextView* pTextView, gpointer codebox)
 {
-    CtClipboard(_pCtMainWin)._paste_clipboard(Glib::wrap(pTextView), static_cast<CtCodebox*>(codebox));
+    auto clipb = CtClipboard();
+    _mutexStatics.lock();
+    clipb.pCtMainWin = nullptr;
+    clipb._paste_clipboard(Glib::wrap(pTextView), static_cast<CtCodebox*>(codebox));
+    _mutexStatics.unlock();
 }
 
-// Cut to Clipboard"
+// Cut to Clipboard
 void CtClipboard::_cut_clipboard(Gtk::TextView* pTextView, CtCodebox* pCodebox)
 {
     auto on_scope_exit = scope_guard([&](void*) { CtClipboard::_static_force_plain_text = false; });

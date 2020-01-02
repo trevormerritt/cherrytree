@@ -234,7 +234,6 @@ private:
     void          _image_edit_dialog(Glib::RefPtr<Gdk::Pixbuf> rPixbuf,
                                      Gtk::TextIter insertIter,
                                      Gtk::TextIter* pIterBound);
-    Glib::ustring _get_iter_alignment(Gtk::TextIter text_iter);
     void          _text_selection_change_case(gchar change_type);
 
 public:
