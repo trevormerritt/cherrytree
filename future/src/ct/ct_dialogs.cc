@@ -20,12 +20,13 @@
  */
 
 #include "ct_dialogs.h"
+#include "ct_treestore.h"
+#include "ct_main_win.h"
 #include <gtkmm/stock.h>
 #include <gtkmm/scrolledwindow.h>
 #include <gtkmm/treeview.h>
 #include <gtkmm/cellrendererpixbuf.h>
 #include <gtkmm/colorchooserdialog.h>
-#include "ct_treestore.h"
 
 CtDialogTextEntry::CtDialogTextEntry(const Glib::ustring& title,
                                      const bool forPassword,
@@ -119,7 +120,7 @@ bool CtDialogs::color_pick_dialog(Gtk::Window& parent,
     dialog.set_modal(true);
     dialog.property_destroy_with_parent() = true;
     dialog.set_position(Gtk::WindowPosition::WIN_POS_CENTER_ON_PARENT);
-    std::vector<std::string> colors = str::split(CtApp::P_ctCfg->colorPalette, ":");
+    std::vector<std::string> colors = str::split(_pCtMainWin->get_ct_config()->colorPalette, ":");
     std::vector<Gdk::RGBA> rgbas;
     for (const std::string& color : colors)
     {
@@ -290,7 +291,7 @@ Gtk::TreeIter CtDialogs::choose_node_dialog(Gtk::Window& parent,
     
     pContentArea->show_all();
     std::string expanded_collapsed_string = pCtTreeStore->get_tree_expanded_collapsed_string(parentTreeView);
-    pCtTreeStore->set_tree_expanded_collapsed_string(expanded_collapsed_string, treeview_2, CtApp::P_ctCfg->nodesBookmExp);
+    pCtTreeStore->set_tree_expanded_collapsed_string(expanded_collapsed_string, treeview_2, _pCtMainWin->get_ct_config()->nodesBookmExp);
     if (sel_tree_iter)
     {
         Gtk::TreePath sel_path = treeview_2.get_model()->get_path(sel_tree_iter);
@@ -563,7 +564,7 @@ void CtDialogs::match_dialog(const Glib::ustring& title,
         pAllMatchesDialog->set_position(Gtk::WIN_POS_CENTER_ON_PARENT);
     }
     CtAction* pAction = ctMainWin.get_ct_menu().find_action("toggle_show_allmatches_dlg");
-    Gtk::Button* pButtonHide = pAllMatchesDialog->add_button(str::format(_("Hide (Restore with '%s')"), pAction->get_shortcut()), Gtk::RESPONSE_CLOSE);
+    Gtk::Button* pButtonHide = pAllMatchesDialog->add_button(str::format(_("Hide (Restore with '%s')"), pAction->get_shortcut(ctMainWin.get_ct_config())), Gtk::RESPONSE_CLOSE);
     pButtonHide->set_image_from_icon_name(Gtk::Stock::CLOSE.id, Gtk::ICON_SIZE_BUTTON);
     Gtk::TreeView* pTreeview = Gtk::manage(new Gtk::TreeView(rModel));
     pTreeview->append_column(_("Node Name"), rModel->columns.node_name);
@@ -794,7 +795,7 @@ bool CtDialogs::link_handle_dialog(CtMainWin& ctMainWin,
             {
                 first_in = false;
                 std::string exp_colpsd_str = ctTreestore.get_tree_expanded_collapsed_string(ctMainWin.curr_tree_view());
-                ctTreestore.set_tree_expanded_collapsed_string(exp_colpsd_str, treeview_2, CtApp::P_ctCfg->nodesBookmExp);
+                ctTreestore.set_tree_expanded_collapsed_string(exp_colpsd_str, treeview_2, _pCtMainWin->get_ct_config()->nodesBookmExp);
             }
             if (!sel_tree_iter)
             {
@@ -849,13 +850,13 @@ bool CtDialogs::link_handle_dialog(CtMainWin& ctMainWin,
     });
     button_browse_file.signal_clicked().connect([&]()
     {
-        std::string filepath = file_select_dialog({.pParentWin=&dialog, .curr_folder=CtApp::P_ctCfg->pickDirFile});
+        std::string filepath = file_select_dialog({.pParentWin=&dialog, .curr_folder=_pCtMainWin->get_ct_config()->pickDirFile});
         if (filepath.empty())
         {
             return;
         }
-        CtApp::P_ctCfg->pickDirFile = Glib::path_get_dirname(filepath);
-        if (CtApp::P_ctCfg->linksRelative)
+        _pCtMainWin->get_ct_config()->pickDirFile = Glib::path_get_dirname(filepath);
+        if (_pCtMainWin->get_ct_config()->linksRelative)
         {
             Glib::RefPtr<Gio::File> rFile = Gio::File::create_for_path(filepath);
             Glib::RefPtr<Gio::File> rDir = Gio::File::create_for_path(ctMainWin.get_curr_doc_file_dir());
@@ -865,13 +866,13 @@ bool CtDialogs::link_handle_dialog(CtMainWin& ctMainWin,
     });
     button_browse_folder.signal_clicked().connect([&]()
     {
-        std::string filepath = CtDialogs::folder_select_dialog(CtApp::P_ctCfg->pickDirFile, &dialog);
+        std::string filepath = CtDialogs::folder_select_dialog(_pCtMainWin->get_ct_config()->pickDirFile, &dialog);
         if (filepath.empty())
         {
             return;
         }
-        CtApp::P_ctCfg->pickDirFile = filepath;
-        if (CtApp::P_ctCfg->linksRelative)
+        _pCtMainWin->get_ct_config()->pickDirFile = filepath;
+        if (_pCtMainWin->get_ct_config()->linksRelative)
         {
             Glib::RefPtr<Gio::File> rFile = Gio::File::create_for_path(filepath);
             Glib::RefPtr<Gio::File> rDir = Gio::File::create_for_path(ctMainWin.get_curr_doc_file_dir());
@@ -1227,7 +1228,7 @@ bool CtDialogs::codeboxhandle_dialog(Gtk::Window& parent_win,
     dialog.set_default_size(300, -1);
     dialog.set_position(Gtk::WIN_POS_CENTER_ON_PARENT);
 
-    CtConfig* pConfig = CtApp::P_ctCfg;
+    CtConfig* pConfig = _pCtMainWin->get_ct_config();
 
     Gtk::Button button_prog_lang;
     Glib::ustring button_label = (pConfig->codeboxSynHighl != CtConst::PLAIN_TEXT_ID ? pConfig->codeboxSynHighl : pConfig->autoSynHighl);
@@ -1535,7 +1536,7 @@ bool CtDialogs::node_prop_dialog(const Glib::ustring &title,
     is_bold_checkbutton.set_active(nodeData.isBold);
     Gtk::CheckButton fg_checkbutton(_("Use Selected Color"));
     fg_checkbutton.set_active(not nodeData.foregroundRgb24.empty());
-    Glib::ustring real_fg = not nodeData.foregroundRgb24.empty() ? nodeData.foregroundRgb24 : (not CtApp::P_ctCfg->currColors.at('n').empty() ? CtApp::P_ctCfg->currColors.at('n').c_str() : "red");
+    Glib::ustring real_fg = not nodeData.foregroundRgb24.empty() ? nodeData.foregroundRgb24 : (not _pCtMainWin->get_ct_config()->currColors.at('n').empty() ? _pCtMainWin->get_ct_config()->currColors.at('n').c_str() : "red");
     Gtk::ColorButton fg_colorbutton{Gdk::RGBA(real_fg)};
     fg_colorbutton.set_sensitive(not nodeData.foregroundRgb24.empty());
     Gtk::HBox fg_hbox;
@@ -1575,7 +1576,7 @@ bool CtDialogs::node_prop_dialog(const Glib::ustring &title,
     std::string syntax_hl_id = nodeData.syntax;
     if (nodeData.syntax == CtConst::RICH_TEXT_ID || nodeData.syntax == CtConst::PLAIN_TEXT_ID)
     {
-        syntax_hl_id = CtApp::P_ctCfg->autoSynHighl;
+        syntax_hl_id = _pCtMainWin->get_ct_config()->autoSynHighl;
     }
     std::string button_stock_id = CtConst::getStockIdForCodeType(syntax_hl_id);
     button_prog_lang.set_label(syntax_hl_id);
@@ -1737,7 +1738,7 @@ bool CtDialogs::node_prop_dialog(const Glib::ustring &title,
     else
     {
         nodeData.syntax = button_prog_lang.get_label();
-        CtApp::P_ctCfg->autoSynHighl = nodeData.syntax;
+        _pCtMainWin->get_ct_config()->autoSynHighl = nodeData.syntax;
     }
     nodeData.tags = tags_entry.get_text();
     nodeData.isRO = ro_checkbutton.get_active();
@@ -1746,7 +1747,7 @@ bool CtDialogs::node_prop_dialog(const Glib::ustring &title,
     if (fg_checkbutton.get_active())
     {
         nodeData.foregroundRgb24 = CtRgbUtil::getRgb24StrFromStrAny(fg_colorbutton.get_color().to_string());
-        CtApp::P_ctCfg->currColors['n'] = nodeData.foregroundRgb24;
+        _pCtMainWin->get_ct_config()->currColors['n'] = nodeData.foregroundRgb24;
     }
     return true;
 }

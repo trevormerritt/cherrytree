@@ -98,9 +98,9 @@ Gtk::TreeIter CtXmlRead::_read_node(xmlpp::Element* pNodeElement, const Gtk::Tre
     nodeData.name = pNodeElement->get_attribute_value("name");
     nodeData.syntax = pNodeElement->get_attribute_value("prog_lang");
     nodeData.tags = pNodeElement->get_attribute_value("tags");
-    nodeData.isRO = CtStrUtil::isStrTrue(pNodeElement->get_attribute_value("readonly"));
+    nodeData.isRO = CtStrUtil::is_str_true(pNodeElement->get_attribute_value("readonly"));
     nodeData.customIconId = (guint32)CtStrUtil::gint64FromGstring(pNodeElement->get_attribute_value("custom_icon_id").c_str());
-    nodeData.isBold = CtStrUtil::isStrTrue(pNodeElement->get_attribute_value("is_bold"));
+    nodeData.isBold = CtStrUtil::is_str_true(pNodeElement->get_attribute_value("is_bold"));
     nodeData.foregroundRgb24 = pNodeElement->get_attribute_value("foreground");
     nodeData.tsCreation = CtStrUtil::gint64FromGstring(pNodeElement->get_attribute_value("ts_creation").c_str());
     nodeData.tsLastSave = CtStrUtil::gint64FromGstring(pNodeElement->get_attribute_value("ts_lastSave").c_str());
@@ -223,9 +223,9 @@ void CtXmlRead::get_text_buffer_slot(Glib::RefPtr<Gsv::Buffer>& rTextBuffer, Gtk
             const Glib::ustring syntaxHighlighting = pNodeElement->get_attribute_value("syntax_highlighting");
             const int frameWidth = std::stoi(pNodeElement->get_attribute_value("frame_width"));
             const int frameHeight = std::stoi(pNodeElement->get_attribute_value("frame_height"));
-            const bool widthInPixels = CtStrUtil::isStrTrue(pNodeElement->get_attribute_value("width_in_pixels"));
-            const bool highlightBrackets = CtStrUtil::isStrTrue(pNodeElement->get_attribute_value("highlight_brackets"));
-            const bool showLineNumbers = CtStrUtil::isStrTrue(pNodeElement->get_attribute_value("show_line_numbers"));
+            const bool widthInPixels = CtStrUtil::is_str_true(pNodeElement->get_attribute_value("width_in_pixels"));
+            const bool highlightBrackets = CtStrUtil::is_str_true(pNodeElement->get_attribute_value("highlight_brackets"));
+            const bool showLineNumbers = CtStrUtil::is_str_true(pNodeElement->get_attribute_value("show_line_numbers"));
 
             CtCodebox* pCtCodebox = new CtCodebox(_pCtMainWin,
                                                   textContent,

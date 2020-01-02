@@ -189,8 +189,6 @@ public:
                     std::optional<Gtk::TextIter> iter_sel_start = std::nullopt,
                     std::optional<Gtk::TextIter> iter_sel_end = std::nullopt,
                     Glib::RefPtr<Gtk::TextBuffer> text_buffer = Glib::RefPtr<Gtk::TextBuffer>());
-public:
-    Glib::ustring apply_tag_exist_or_create(const Glib::ustring& tag_property, Glib::ustring property_value);
 
 private:
     struct text_view_n_buffer_codebox_proof {

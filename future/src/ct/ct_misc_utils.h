@@ -75,14 +75,18 @@ void rich_text_attributes_update(const Gtk::TextIter& text_iter, std::map<const 
 
 bool tag_richtext_toggling_on_or_off(const Gtk::TextIter& text_iter);
 
-void generic_process_slot(int start_offset, int end_offset, Glib::RefPtr<Gtk::TextBuffer> text_buffer,
+void generic_process_slot(int start_offset,
+                          int end_offset,
+                          Glib::RefPtr<Gtk::TextBuffer>& text_buffer,
                           std::function<void(Gtk::TextIter&/*start_iter*/, Gtk::TextIter&/*curr_iter*/, std::map<const gchar*, std::string>&/*curr_attributes*/)> serialize_func);
+
+const gchar* get_text_iter_alignment(const Gtk::TextIter& textIter, CtMainWin* pCtMainWin);
 
 } // namespace CtTextIterUtil
 
 namespace CtStrUtil {
 
-bool isStrTrue(const Glib::ustring& inStr);
+bool is_str_true(const Glib::ustring& inStr);
 
 gint64 gint64FromGstring(const gchar* inGstring, bool hexPrefix=false);
 

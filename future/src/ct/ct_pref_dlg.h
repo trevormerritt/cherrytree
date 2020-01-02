@@ -21,17 +21,20 @@
 
 #pragma once
 
+#include <glibmm/i18n.h>
 #include <gtkmm/dialog.h>
 #include <gtkmm/liststore.h>
 #include <glibmm/value.h>
 #include <glibmm/ustring.h>
 #include "ct_menu.h"
 
+class CtMainWin;
+
 class CtPrefDlg : public Gtk::Dialog
 {
 public:
     CtPrefDlg(CtMainWin* pCtMainWin);
-    virtual ~CtPrefDlg();
+    virtual ~CtPrefDlg() override;
 
 private:
     Gtk::Widget* build_tab_text_n_code();

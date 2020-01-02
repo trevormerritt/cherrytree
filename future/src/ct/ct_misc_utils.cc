@@ -24,6 +24,7 @@
 #include <string.h>
 #include "ct_misc_utils.h"
 #include "ct_const.h"
+#include "ct_main_win.h"
 #include <ctime>
 #include <regex>
 #include <glib/gstdio.h> // to get stats
@@ -340,7 +341,9 @@ bool CtTextIterUtil::tag_richtext_toggling_on_or_off(const Gtk::TextIter& text_i
     return retVal;
 }
 
-void CtTextIterUtil::generic_process_slot(int start_offset, int end_offset, Glib::RefPtr<Gtk::TextBuffer> text_buffer,
+void CtTextIterUtil::generic_process_slot(int start_offset,
+                                          int end_offset,
+                                          Glib::RefPtr<Gtk::TextBuffer>& text_buffer,
                                           std::function<void(Gtk::TextIter&/*start_iter*/, Gtk::TextIter&/*curr_iter*/, std::map<const gchar*, std::string>&/*curr_attributes*/)> serialize_func)
 {
     std::map<const gchar*, std::string> curr_attributes;
@@ -384,7 +387,25 @@ void CtTextIterUtil::generic_process_slot(int start_offset, int end_offset, Glib
     }
 }
 
-bool CtStrUtil::isStrTrue(const Glib::ustring& inStr)
+const gchar* CtTextIterUtil::get_text_iter_alignment(const Gtk::TextIter& textIter, CtMainWin* pCtMainWin)
+{
+    const char* retVal{CtConst::TAG_PROP_VAL_LEFT};
+    for (const char* currAlignType : std::list{CtConst::TAG_PROP_VAL_LEFT,
+                                               CtConst::TAG_PROP_VAL_CENTER,
+                                               CtConst::TAG_PROP_VAL_FILL,
+                                               CtConst::TAG_PROP_VAL_RIGHT})
+    {
+        const std::string tagName = pCtMainWin->get_text_tag_name_exist_or_create(CtConst::TAG_JUSTIFICATION, currAlignType);
+        if (textIter.has_tag(pCtMainWin->get_text_tag_table()->lookup(tagName)))
+        {
+            retVal = currAlignType;
+            break;
+        }
+    }
+    return retVal;
+}
+
+bool CtStrUtil::is_str_true(const Glib::ustring& inStr)
 {
     bool retVal{false};
     if (CtConst::TAG_PROP_VAL_TRUE == inStr.lowercase() or

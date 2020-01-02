@@ -99,24 +99,6 @@ void CtAnchoredWidget::updateJustification(const Gtk::TextIter& textIter)
     updateJustification(get_text_iter_alignment(textIter));
 }
 
-const gchar* CtAnchoredWidget::get_text_iter_alignment(const Gtk::TextIter& textIter)
-{
-    const char* retVal{CtConst::TAG_PROP_VAL_LEFT};
-    for (const char* currAlignType : std::list{CtConst::TAG_PROP_VAL_LEFT,
-                                               CtConst::TAG_PROP_VAL_CENTER,
-                                               CtConst::TAG_PROP_VAL_FILL,
-                                               CtConst::TAG_PROP_VAL_RIGHT})
-    {
-        const std::string tagName = _pCtMainWin->get_text_tag_name_exist_or_create(CtConst::TAG_JUSTIFICATION, currAlignType);
-        if (textIter.has_tag(_pCtMainWin->get_text_tag_table()->lookup(tagName)))
-        {
-            retVal = currAlignType;
-            break;
-        }
-    }
-    return retVal;
-}
-
 void CtAnchoredWidget::insertInTextBuffer(Glib::RefPtr<Gsv::Buffer> rTextBuffer)
 {
     _rTextChildAnchor = rTextBuffer->create_child_anchor(rTextBuffer->get_iter_at_offset(_charOffset));
@@ -345,7 +327,7 @@ void CtTextView::for_event_after_double_click_button1(GdkEvent* event)
     window_to_buffer_coords(Gtk::TEXT_WINDOW_TEXT, (int)event->button.x, (int)event->button.y, x, y);
     Gtk::TextIter iter_start;
     get_iter_at_location(iter_start, x, y);
-    CtTextIterUtil::apply_tag_try_automatic_bounds(text_buffer, iter_start);
+    _pCtMainWin->apply_tag_try_automatic_bounds(text_buffer, iter_start);
 }
 
 // Called after every gtk.gdk.BUTTON_PRESS on the SourceView

@@ -84,11 +84,11 @@ void CtActions::embfile_delete()
 // Embedded File Save Dialog
 void CtActions::embfile_save()
 {
-    CtDialogs::file_select_args args = {.pParentWin=_pCtMainWin, .curr_folder=CtApp::P_ctCfg->pickDirFile, .curr_file_name=curr_file_anchor->get_file_name()};
+    CtDialogs::file_select_args args = {.pParentWin=_pCtMainWin, .curr_folder=_pCtMainWin->get_ct_config()->pickDirFile, .curr_file_name=curr_file_anchor->get_file_name()};
     std::string filepath = CtDialogs::file_save_as_dialog(args);
     if (filepath.empty()) return;
 
-    CtApp::P_ctCfg->pickDirFile = Glib::path_get_dirname(filepath);
+    _pCtMainWin->get_ct_config()->pickDirFile = Glib::path_get_dirname(filepath);
     g_file_set_contents(filepath.c_str(), curr_file_anchor->get_raw_blob().c_str(), (gssize)curr_file_anchor->get_raw_blob().size(), nullptr);
 }
 
@@ -107,7 +107,7 @@ void CtActions::embfile_open()
             CtConst::CHAR_MINUS + std::to_string(open_id) +
             CtConst::CHAR_MINUS + std::to_string(getpid())+
             CtConst::CHAR_MINUS + curr_file_anchor->get_file_name();
-    Glib::ustring filepath = CtApp::P_ctTmp->getHiddenFilePath(filename);
+    Glib::ustring filepath = _pCtMainWin->get_ct_tmp()->getHiddenFilePath(filename);
     std::fstream file(filepath, std::ios::out | std::ios::binary);
     long size = (long)curr_file_anchor->get_raw_blob().size();
     file.write(curr_file_anchor->get_raw_blob().c_str(), size);
@@ -127,7 +127,7 @@ void CtActions::image_save()
 {
     CtDialogs::file_select_args args{
         .pParentWin=_pCtMainWin,
-        .curr_folder=CtApp::P_ctCfg->pickDirImg,
+        .curr_folder=_pCtMainWin->get_ct_config()->pickDirImg,
         .curr_file_name="",
         .filter_name=_("PNG Image"),
         .filter_pattern={"*.png"}
@@ -135,7 +135,7 @@ void CtActions::image_save()
     std::string filename = CtDialogs::file_save_as_dialog(args);
     if (filename.empty()) return;
 
-    CtApp::P_ctCfg->pickDirImg = Glib::path_get_dirname(filename);
+    _pCtMainWin->get_ct_config()->pickDirImg = Glib::path_get_dirname(filename);
     if (!str::endswith(filename, ".png")) filename += ".png";
     try {
        curr_image_anchor->save(filename, "png");
@@ -221,7 +221,7 @@ void CtActions::link_clicked(const Glib::ustring& tag_property_value, bool from_
      if (vec[0] == CtConst::LINK_TYPE_WEBS) // link to webpage
      {
          Glib::ustring clean_weblink = str::replace(vec[1], "amp;", "");
-         if (CtApp::P_ctCfg->weblinkCustomOn)
+         if (_pCtMainWin->get_ct_config()->weblinkCustomOn)
          {
              // todo: subprocess.call(self.weblink_custom_action[1] % clean_weblink, shell=True)
          }
@@ -331,20 +331,21 @@ void CtActions::codebox_delete_keeping_text()
 void CtActions::codebox_change_properties()
 {
     if (!_is_curr_node_not_read_only_or_error()) return;
-    CtApp::P_ctCfg->codeboxWidth = curr_codebox_anchor->get_frame_width();
-    CtApp::P_ctCfg->codeboxWidthPixels = curr_codebox_anchor->get_width_in_pixels();
-    CtApp::P_ctCfg->codeboxHeight = curr_codebox_anchor->get_frame_height();
-    CtApp::P_ctCfg->codeboxLineNum = curr_codebox_anchor->get_show_line_numbers();
-    CtApp::P_ctCfg->codeboxMatchBra = curr_codebox_anchor->get_highlight_brackets();
-    CtApp::P_ctCfg->codeboxSynHighl = curr_codebox_anchor->get_syntax_highlighting();
+    _pCtMainWin->get_ct_config()->codeboxWidth = curr_codebox_anchor->get_frame_width();
+    _pCtMainWin->get_ct_config()->codeboxWidthPixels = curr_codebox_anchor->get_width_in_pixels();
+    _pCtMainWin->get_ct_config()->codeboxHeight = curr_codebox_anchor->get_frame_height();
+    _pCtMainWin->get_ct_config()->codeboxLineNum = curr_codebox_anchor->get_show_line_numbers();
+    _pCtMainWin->get_ct_config()->codeboxMatchBra = curr_codebox_anchor->get_highlight_brackets();
+    _pCtMainWin->get_ct_config()->codeboxSynHighl = curr_codebox_anchor->get_syntax_highlighting();
 
     if (!CtDialogs::codeboxhandle_dialog(*_pCtMainWin, _("Edit CodeBox"))) return;
 
-    curr_codebox_anchor->set_syntax_highlighting(CtApp::P_ctCfg->codeboxSynHighl);
-    curr_codebox_anchor->set_width_in_pixels(CtApp::P_ctCfg->codeboxWidthPixels);
-    curr_codebox_anchor->set_width_height((int)CtApp::P_ctCfg->codeboxWidth, (int)CtApp::P_ctCfg->codeboxHeight);
-    curr_codebox_anchor->set_show_line_numbers(CtApp::P_ctCfg->codeboxLineNum);
-    curr_codebox_anchor->set_highlight_brackets(CtApp::P_ctCfg->codeboxMatchBra);
+    curr_codebox_anchor->set_syntax_highlighting(_pCtMainWin->get_ct_config()->codeboxSynHighl,
+                                                 _pCtMainWin->get_language_manager());
+    curr_codebox_anchor->set_width_in_pixels(_pCtMainWin->get_ct_config()->codeboxWidthPixels);
+    curr_codebox_anchor->set_width_height((int)_pCtMainWin->get_ct_config()->codeboxWidth, (int)_pCtMainWin->get_ct_config()->codeboxHeight);
+    curr_codebox_anchor->set_show_line_numbers(_pCtMainWin->get_ct_config()->codeboxLineNum);
+    curr_codebox_anchor->set_highlight_brackets(_pCtMainWin->get_ct_config()->codeboxMatchBra);
     _pCtMainWin->update_window_save_needed(CtSaveNeededUpdType::nbuf, true/*new_machine_state*/);
 }
 
@@ -357,10 +358,10 @@ void CtActions::exec_code()
 void CtActions::codebox_load_from_file()
 {
     if (!_is_curr_node_not_read_only_or_error()) return;
-    CtDialogs::file_select_args args = {.pParentWin=_pCtMainWin, .curr_folder=CtApp::P_ctCfg->pickDirCbox};
+    CtDialogs::file_select_args args = {.pParentWin=_pCtMainWin, .curr_folder=_pCtMainWin->get_ct_config()->pickDirCbox};
     std::string filepath = CtDialogs::file_select_dialog(args);
     if (filepath.empty()) return;
-    CtApp::P_ctCfg->pickDirCbox = Glib::path_get_dirname(filepath);
+    _pCtMainWin->get_ct_config()->pickDirCbox = Glib::path_get_dirname(filepath);
 
     auto file = std::fstream(filepath, std::ios::in);
     std::string buffer(std::istreambuf_iterator<char>(file), {});
@@ -372,10 +373,10 @@ void CtActions::codebox_load_from_file()
 // Save the CodeBox Content To a Text File
 void CtActions::codebox_save_to_file()
 {
-    CtDialogs::file_select_args args = {.pParentWin=_pCtMainWin, .curr_folder=CtApp::P_ctCfg->pickDirCbox};
+    CtDialogs::file_select_args args = {.pParentWin=_pCtMainWin, .curr_folder=_pCtMainWin->get_ct_config()->pickDirCbox};
     std::string filepath = CtDialogs::file_save_as_dialog(args);
     if (filepath.empty()) return;
-    CtApp::P_ctCfg->pickDirCbox = Glib::path_get_dirname(filepath);
+    _pCtMainWin->get_ct_config()->pickDirCbox = Glib::path_get_dirname(filepath);
 
     Glib::ustring text = curr_codebox_anchor->get_text_content();
     g_file_set_contents(filepath.c_str(), text.c_str(), (gssize)text.bytes(), nullptr);

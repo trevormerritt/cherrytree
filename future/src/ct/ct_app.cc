@@ -87,7 +87,7 @@ CtMainWin* CtApp::create_appwindow()
                                           _uCtTmp.get(),
                                           _uCtMenu.get(),
                                           _rIcontheme.get(),
-                                          _rTextTagTable.get(),
+                                          _rTextTagTable,
                                           _rCssProvider.get(),
                                           _rLanguageManager.get(),
                                           _rStyleSchemeManager.get());

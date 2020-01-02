@@ -75,7 +75,7 @@ public:
               CtTmp*                   pCtTmp,
               CtMenu*                  pCtMenu,
               Gtk::IconTheme*          pGtkIconTheme,
-              Gtk::TextTagTable*       pGtkTextTagTable,
+              Glib::RefPtr<Gtk::TextTagTable> rGtkTextTagTable,
               Gtk::CssProvider*        pGtkCssProvider,
               Gsv::LanguageManager*    pGsvLanguageManager,
               Gsv::StyleSchemeManager* pGsvStyleSchemeManager);
@@ -114,7 +114,7 @@ public:
     CtActions*               get_ct_actions()  { return _pCtActions; }
     CtTmp*                   get_ct_tmp()      { return _pCtTmp; }
     Gtk::IconTheme*          get_icon_theme()  { return _pGtkIconTheme; }
-    Gtk::TextTagTable*       get_text_tag_table() { return _pGtkTextTagTable; }
+    Gtk::TextTagTable*       get_text_tag_table() { return _rGtkTextTagTable.get(); }
     Gtk::CssProvider*        get_css_provider()   { return _pGtkCssProvider; }
     Gsv::LanguageManager*    get_language_manager() { return _pGsvLanguageManager; }
     Gsv::StyleSchemeManager* get_style_scheme_manager() { return _pGsvStyleSchemeManager; }
@@ -185,7 +185,7 @@ private:
     CtTmp*                       _pCtTmp;
     CtMenu*                      _pCtMenu;
     Gtk::IconTheme*              _pGtkIconTheme;
-    Gtk::TextTagTable*           _pGtkTextTagTable;
+    Glib::RefPtr<Gtk::TextTagTable> _rGtkTextTagTable;
     Gtk::CssProvider*            _pGtkCssProvider;
     Gsv::LanguageManager*        _pGsvLanguageManager;
     Gsv::StyleSchemeManager*     _pGsvStyleSchemeManager;

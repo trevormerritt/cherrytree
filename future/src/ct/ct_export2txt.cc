@@ -80,9 +80,9 @@ Glib::ustring CtExport2Txt::get_table_plain(CtTable* table_orig)
 // Returns the plain CodeBox
 Glib::ustring CtExport2Txt::get_codebox_plain(CtCodebox* codebox)
 {
-    Glib::ustring codebox_plain = CtConst::CHAR_NEWLINE + CtApp::P_ctCfg->hRule + CtConst::CHAR_NEWLINE;
+    Glib::ustring codebox_plain = CtConst::CHAR_NEWLINE + _pCtMainWin->get_ct_config()->hRule + CtConst::CHAR_NEWLINE;
     codebox_plain += codebox->get_text_content();
-    codebox_plain += CtConst::CHAR_NEWLINE + CtApp::P_ctCfg->hRule + CtConst::CHAR_NEWLINE;
+    codebox_plain += CtConst::CHAR_NEWLINE + _pCtMainWin->get_ct_config()->hRule + CtConst::CHAR_NEWLINE;
     return codebox_plain;
 }
 

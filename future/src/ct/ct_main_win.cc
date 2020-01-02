@@ -26,12 +26,12 @@
 #include "ct_actions.h"
 #include <glib-object.h>
 
-CtMainWin::CtMainWin(CtConfig*                pCtConfig,
-                     CtActions*               pCtActions,
-                     CtTmp*                   pCtTmp,
-                     CtMenu*                  pCtMenu,
-                     Gtk::IconTheme*          pGtkIconTheme,
-                     Gtk::TextTagTable*       pGtkTextTagTable,
+CtMainWin::CtMainWin(CtConfig*        pCtConfig,
+                     CtActions*       pCtActions,
+                     CtTmp*           pCtTmp,
+                     CtMenu*          pCtMenu,
+                     Gtk::IconTheme*  pGtkIconTheme,
+                     Glib::RefPtr<Gtk::TextTagTable> rGtkTextTagTable,
                      Gtk::CssProvider*        pGtkCssProvider,
                      Gsv::LanguageManager*    pGsvLanguageManager,
                      Gsv::StyleSchemeManager* pGsvStyleSchemeManager)
@@ -41,7 +41,7 @@ CtMainWin::CtMainWin(CtConfig*                pCtConfig,
    _pCtTmp(pCtTmp),
    _pCtMenu(pCtMenu),
    _pGtkIconTheme(pGtkIconTheme),
-   _pGtkTextTagTable(pGtkTextTagTable),
+   _rGtkTextTagTable(rGtkTextTagTable),
    _pGtkCssProvider(pGtkCssProvider),
    _pGsvLanguageManager(pGsvLanguageManager),
    _pGsvStyleSchemeManager(pGsvStyleSchemeManager),
@@ -136,7 +136,7 @@ Gtk::Image* CtMainWin::new_image_from_stock(const std::string& stockImage, Gtk::
 Glib::RefPtr<Gsv::Buffer> CtMainWin::get_new_text_buffer(const std::string& syntax, const Glib::ustring& textContent)
 {
     Glib::RefPtr<Gsv::Buffer> rRetTextBuffer;
-    rRetTextBuffer = Gsv::Buffer::create(_pGtkTextTagTable);
+    rRetTextBuffer = Gsv::Buffer::create(_rGtkTextTagTable);
     rRetTextBuffer->set_max_undo_levels(_pCtConfig->limitUndoableSteps);
     if (CtConst::RICH_TEXT_ID != syntax)
     {
@@ -165,7 +165,7 @@ Glib::RefPtr<Gsv::Buffer> CtMainWin::get_new_text_buffer(const std::string& synt
 const std::string CtMainWin::get_text_tag_name_exist_or_create(const std::string& propertyName, const std::string& propertyValue)
 {
     const std::string tagName{propertyName + "_" + propertyValue};
-    Glib::RefPtr<Gtk::TextTag> rTextTag = _pGtkTextTagTable->lookup(tagName);
+    Glib::RefPtr<Gtk::TextTag> rTextTag = _rGtkTextTagTable->lookup(tagName);
     if (not rTextTag)
     {
         bool identified{true};
@@ -298,7 +298,7 @@ const std::string CtMainWin::get_text_tag_name_exist_or_create(const std::string
         {
             std::cerr << "!! unsupported propertyName=" << propertyName << " propertyValue=" << propertyValue << std::endl;
         }
-        _pGtkTextTagTable->add(rTextTag);
+        _rGtkTextTagTable->add(rTextTag);
     }
     return tagName;
 }

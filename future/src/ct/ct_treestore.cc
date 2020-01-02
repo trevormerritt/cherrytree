@@ -825,7 +825,7 @@ void CtTreeStore::set_tree_expanded_collapsed_string(const std::string& expanded
         auto couple = str::split(element, ",");
         if (couple.size() == 2)
         {
-            expanded_collapsed_dict[std::stoll(couple[0])] = CtStrUtil::isStrTrue(couple[1]);
+            expanded_collapsed_dict[std::stoll(couple[0])] = CtStrUtil::is_str_true(couple[1]);
         }
     }
     treeView.collapse_all();
