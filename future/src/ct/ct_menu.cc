@@ -190,6 +190,7 @@ void CtMenu::init_actions(CtActions* pActions)
     _actions.push_back(CtMenuAction{tree_cat, "handle_bookmarks", "ct_edit", _("_Handle Bookmarks"), None, _("Handle the Bookmarks List"), sigc::mem_fun(*pActions, &CtActions::bookmarks_handle)});
     _actions.push_back(CtMenuAction{tree_cat, "go_node_prev", "ct_go-back", _("Go _Back"), KB_ALT+CtConst::STR_KEY_LEFT, _("Go to the Previous Visited Node"), sigc::mem_fun(*pActions, &CtActions::node_go_back)});
     _actions.push_back(CtMenuAction{tree_cat, "go_node_next", "ct_go-forward", _("Go _Forward"), KB_ALT+CtConst::STR_KEY_RIGHT, _("Go to the Next Visited Node"), sigc::mem_fun(*pActions, &CtActions::node_go_forward)});
+    _actions.push_back(CtMenuAction{tree_cat, "tree_node_link", "ct_node_link", _("Copy Link to Node"), None, _("Copy Link to the Selected Node to Clipboard"), sigc::mem_fun(*pActions, &CtActions::node_link_to_clipboard)});
     const char* find_cat = _("Find/Replace");
     _actions.push_back(CtMenuAction{find_cat, "find_in_node", "ct_find_sel", _("_Find in Node Content"), KB_CONTROL+"F", _("Find into the Selected Node Content"), sigc::mem_fun(*pActions, &CtActions::find_in_selected_node)});
     _actions.push_back(CtMenuAction{find_cat, "find_in_allnodes", "ct_find_all", _("Find in _All Nodes Contents"), KB_CONTROL+KB_SHIFT+"F", _("Find into All the Tree Nodes Contents"), sigc::mem_fun(*pActions, &CtActions::find_in_all_nodes)});
@@ -230,7 +231,7 @@ void CtMenu::init_actions(CtActions* pActions)
     _actions.push_back(CtMenuAction{import_cat, "import_basket", CtConst::STR_STOCK_CT_IMP, _("From _Basket Folder"), None, _("Add Nodes of a Basket Folder to the Current Tree"), sigc::signal<void>() /* dad.nodes_add_from_basket_folder */});
     _actions.push_back(CtMenuAction{import_cat, "import_epim_html", CtConst::STR_STOCK_CT_IMP, _("From _EssentialPIM HTML File"), None, _("Add Node from an EssentialPIM HTML File to the Current Tree"), sigc::signal<void>() /* dad.nodes_add_from_epim_html_file */});
     _actions.push_back(CtMenuAction{import_cat, "import_gnote", CtConst::STR_STOCK_CT_IMP, _("From _Gnote Folder"), None, _("Add Nodes of a Gnote Folder to the Current Tree"), sigc::mem_fun(*pActions, &CtActions::import_nodes_from_gnote_directory)});
-    _actions.push_back(CtMenuAction{import_cat, "import_keepnote", CtConst::STR_STOCK_CT_IMP, _("From _KeepNote Folder"), None, _("Add Nodes of a KeepNote Folder to the Current Tree"), sigc::signal<void>() /* dad.nodes_add_from_keepnote_folder */});
+    _actions.push_back(CtMenuAction{import_cat, "import_keepnote", CtConst::STR_STOCK_CT_IMP, _("From _KeepNote Folder"), None, _("Add Nodes of a KeepNote Folder to the Current Tree"), sigc::mem_fun(*pActions, &CtActions::import_nodes_from_keepnote_directory) /* dad.nodes_add_from_keepnote_folder */});
     _actions.push_back(CtMenuAction{import_cat, "import_keynote", CtConst::STR_STOCK_CT_IMP, _("From K_eyNote File"), None, _("Add Nodes of a KeyNote File to the Current Tree"), sigc::signal<void>() /* dad.nodes_add_from_keynote_file */});
     _actions.push_back(CtMenuAction{import_cat, "import_knowit", CtConst::STR_STOCK_CT_IMP, _("From K_nowit File"), None, _("Add Nodes of a Knowit File to the Current Tree"), sigc::signal<void>() /* dad.nodes_add_from_knowit_file */});
     _actions.push_back(CtMenuAction{import_cat, "import_leo", CtConst::STR_STOCK_CT_IMP, _("From _Leo File"), None, _("Add Nodes of a Leo File to the Current Tree"), sigc::signal<void>() /* dad.nodes_add_from_leo_file */});
@@ -247,6 +248,7 @@ void CtMenu::init_actions(CtActions* pActions)
     _actions.push_back(CtMenuAction{others_cat, "anch_copy", "ct_edit_copy", _("_Copy Anchor"), None, _("Copy the Selected Anchor"), sigc::mem_fun(*pActions, &CtActions::anchor_copy)});
     _actions.push_back(CtMenuAction{others_cat, "anch_del", "ct_edit_delete", _("_Delete Anchor"), None, _("Delete the Selected Anchor"), sigc::mem_fun(*pActions, &CtActions::anchor_delete)});
     _actions.push_back(CtMenuAction{others_cat, "anch_edit", "ct_anchor_edit", _("Edit _Anchor"), None, _("Edit the Underlying Anchor"), sigc::mem_fun(*pActions, &CtActions::anchor_edit)});
+    _actions.push_back(CtMenuAction{others_cat, "anch_link", "ct_anchor_link", _("Copy Anchor Link"), None, _("Copy Link to the Underlying Anchor to Clipboard"), sigc::mem_fun(*pActions, &CtActions::anchor_link_to_clipboard)});
     _actions.push_back(CtMenuAction{others_cat, "emb_file_cut", "ct_edit_cut", _("C_ut Embedded File"), None, _("Cut the Selected Embedded File"), sigc::mem_fun(*pActions, &CtActions::embfile_cut)});
     _actions.push_back(CtMenuAction{others_cat, "emb_file_copy", "ct_edit_copy", _("_Copy Embedded File"), None, _("Copy the Selected Embedded File"), sigc::mem_fun(*pActions, &CtActions::embfile_copy)});
     _actions.push_back(CtMenuAction{others_cat, "emb_file_del", "ct_edit_delete", _("_Delete Embedded File"), None, _("Delete the Selected Embedded File"), sigc::mem_fun(*pActions, &CtActions::embfile_delete)});
@@ -366,6 +368,14 @@ Gtk::MenuItem* CtMenu::find_menu_item(Gtk::MenuBar* menuBar, std::string name)
     return nullptr;
 }
 
+Gtk::AccelLabel* CtMenu::get_accel_label(Gtk::MenuItem* item)
+{
+    if (auto box = dynamic_cast<Gtk::Box*>(item->get_child()))
+        if (auto label = dynamic_cast<Gtk::AccelLabel*>(box->get_children().back()))
+            return label;
+    return nullptr;
+}
+
 Gtk::Toolbar* CtMenu::build_toolbar(Gtk::MenuToolButton*& pRecentDocsMenuToolButton)
 {
     Gtk::Toolbar* pToolbar{nullptr};
@@ -400,18 +410,18 @@ Gtk::Menu* CtMenu::build_recent_docs_menu(const CtRecentDocsFilepaths& recentDoc
                                           sigc::slot<void, const std::string&>& recent_doc_rm_action)
 {
     Gtk::Menu* pMenu = Gtk::manage(new Gtk::Menu());
-    for (const std::string& filepath : recentDocsFilepaths)
+    for (const fs::path& filepath : recentDocsFilepaths)
     {
         Gtk::MenuItem* pMenuItem = _add_menu_item(GTK_WIDGET(pMenu->gobj()), filepath.c_str(), "ct_open", nullptr, nullptr, filepath.c_str(), nullptr, nullptr, nullptr);
-        pMenuItem->signal_activate().connect(sigc::bind(recent_doc_open_action, filepath));
+        pMenuItem->signal_activate().connect(sigc::bind(recent_doc_open_action, filepath.string()));
     }
     Gtk::MenuItem* pMenuItemRm = _add_menu_item(GTK_WIDGET(pMenu->gobj()), _("Remove from list"), "ct_edit_delete", nullptr, nullptr, _("Remove from list"), nullptr, nullptr, nullptr);
     Gtk::Menu* pMenuRm = Gtk::manage(new Gtk::Menu());
     pMenuItemRm->set_submenu(*pMenuRm);
-    for (const std::string& filepath : recentDocsFilepaths)
+    for (const fs::path& filepath : recentDocsFilepaths)
     {
         Gtk::MenuItem* pMenuItem = _add_menu_item(GTK_WIDGET(pMenuRm->gobj()), filepath.c_str(), "ct_edit_delete", nullptr, nullptr, filepath.c_str(), nullptr, nullptr, nullptr);
-        pMenuItem->signal_activate().connect(sigc::bind(recent_doc_rm_action, filepath));
+        pMenuItem->signal_activate().connect(sigc::bind(recent_doc_rm_action, filepath.string()));
     }
     return pMenu;
 }
@@ -844,6 +854,7 @@ const char* CtMenu::_get_ui_str_menu()
     <menuitem action='tree_node_toggle_ro'/>
     <menuitem action='node_bookmark'/>
     <menuitem action='node_unbookmark'/>
+    <menuitem action='tree_node_link'/>
     <menuitem action='tree_node_date'/>
     <menuitem action='tree_parse_info'/>
     <separator/>
@@ -1146,6 +1157,7 @@ const char* CtMenu::_get_popup_menu_ui_str_anchor()
   <menuitem action='anch_copy'/>
   <menuitem action='anch_del'/>
   <separator/>
+  <menuitem action='anch_link'/>
   <menuitem action='anch_edit'/>
 </popup>
     )MARKUP";

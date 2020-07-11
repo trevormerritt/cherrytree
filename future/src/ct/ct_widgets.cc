@@ -34,57 +34,59 @@
 
 std::map<std::string, GspellChecker*> CtTextView::_static_spell_checkers;
 
-CtTmp::CtTmp()
-{
-}
-
 CtTmp::~CtTmp()
 {
     //std::cout << "~CtTmp()" << std::endl;
-    for (const auto& currPair : _mapHiddenFiles)
-    {
-        if (g_file_test(currPair.second, G_FILE_TEST_IS_REGULAR) and (0 != g_remove(currPair.second)))
-        {
+    for (const auto& currPair : _mapHiddenFiles) {
+        if ( Glib::file_test(currPair.second, Glib::FILE_TEST_IS_REGULAR) and
+             0 != g_remove(currPair.second) ) {
             spdlog::error("!! g_remove");
         }
         g_free(currPair.second);
     }
-    for (const auto& currPair : _mapHiddenDirs)
-    {
-        if (g_file_test(currPair.second, G_FILE_TEST_IS_DIR) and (0 != g_rmdir(currPair.second)))
-        {
-            spdlog::error("!! g_rmdir");
+    for (const auto& currPair : _mapHiddenDirs) {
+        if (Glib::file_test(currPair.second, Glib::FILE_TEST_IS_DIR)) {
+            for (const fs::path& filepath : fs::get_dir_entries(currPair.second)) {
+                if (0 != g_remove(filepath.string().c_str())) {
+                    spdlog::error("!! g_remove");
+                }
+            }
+            if (0 != g_rmdir(currPair.second)) {
+                spdlog::error("!! g_rmdir");
+            }
         }
         g_free(currPair.second);
     }
 }
 
-const gchar* CtTmp::getHiddenDirPath(const std::string& visiblePath)
+fs::path CtTmp::getHiddenDirPath(const fs::path& visiblePath)
 {
-    if (not _mapHiddenDirs.count(visiblePath))
+    if (not _mapHiddenDirs.count(visiblePath.string()))
     {
-        _mapHiddenDirs[visiblePath] = g_dir_make_tmp(nullptr, nullptr);
+        _mapHiddenDirs[visiblePath.string()] = g_dir_make_tmp(nullptr, nullptr);
     }
-    return _mapHiddenDirs.at(visiblePath);
+    return _mapHiddenDirs.at(visiblePath.string());
 }
 
-const gchar* CtTmp::getHiddenFilePath(const std::string& visiblePath)
+fs::path CtTmp::getHiddenFilePath(const fs::path& visiblePath)
 {
-    if (not _mapHiddenFiles.count(visiblePath))
+    if (not _mapHiddenFiles.count(visiblePath.string()))
     {
-        const gchar* tempDir{getHiddenDirPath(visiblePath)};
-        std::string basename{Glib::path_get_basename(visiblePath)};
-        if (Glib::str_has_suffix(basename, ".ctx"))
+        fs::path tempDir = getHiddenDirPath(visiblePath);
+        fs::path basename = visiblePath.filename();
+        if (basename.extension() == ".ctx")
         {
-            basename.replace(basename.end()-1, basename.end(), "b");
+            basename = basename.stem();
+            basename += ".ctb";
         }
-        else if (Glib::str_has_suffix(basename, ".ctz"))
+        else if (basename.extension() == ".ctz")
         {
-            basename.replace(basename.end()-1, basename.end(), "d");
+            basename = basename.stem();
+            basename += ".ctd";
         }
-        _mapHiddenFiles[visiblePath] = g_build_filename(tempDir, basename.c_str(), NULL);
+        _mapHiddenFiles[visiblePath.string()] = g_build_filename(tempDir.c_str(), basename.c_str(), nullptr);
     }
-    return _mapHiddenFiles.at(visiblePath);
+    return _mapHiddenFiles.at(visiblePath.string());
 }
 
 
@@ -186,6 +188,8 @@ CtTextView::~CtTextView()
 
 void CtTextView::setup_for_syntax(const std::string& syntax)
 {
+    if (_markdown_filter_active()) _md_handler->active(syntax == CtConst::RICH_TEXT_ID);
+
     std::string new_class;
     if (CtConst::RICH_TEXT_ID == syntax)         { new_class = "ct-view-rich-text"; }
     else if (CtConst::PLAIN_TEXT_ID == syntax)   { new_class = "ct-view-plain-text"; }
@@ -339,6 +343,24 @@ void CtTextView::for_event_after_triple_click_button1(GdkEvent* event)
     _pCtMainWin->apply_tag_try_automatic_bounds_triple_click(text_buffer, iter_start);
 }
 
+
+
+bool CtTextView::_markdown_filter_active() {
+    bool is_active = _pCtMainWin->get_ct_config()->enableMdFormatting;
+    if (is_active && !_md_handler) {
+        _md_handler = std::make_unique<CtMarkdownFilter>(std::make_unique<CtClipboard>(_pCtMainWin), get_buffer(), _pCtMainWin->get_ct_config());
+    }
+    return is_active;
+}
+
+void CtTextView::set_buffer(const Glib::RefPtr<Gtk::TextBuffer>& buffer)
+{
+    Gsv::View::set_buffer(buffer);
+    
+    // Setup the markdown filter for a new buffer
+    if (_markdown_filter_active()) _md_handler->buffer(get_buffer());
+}
+
 // Called after every gtk.gdk.BUTTON_PRESS on the SourceView
 void CtTextView::for_event_after_button_press(GdkEvent* event)
 {
@@ -381,6 +403,8 @@ void CtTextView::for_event_after_key_press(GdkEvent* event, const Glib::ustring&
     auto config = _pCtMainWin->get_ct_config();
     bool is_code = syntaxHighlighting != CtConst::RICH_TEXT_ID and syntaxHighlighting != CtConst::PLAIN_TEXT_ID;
 
+    
+    
     if (not is_code and config->autoSmartQuotes and (event->key.keyval == GDK_KEY_quotedbl or event->key.keyval == GDK_KEY_apostrophe))
     {
         Gtk::TextIter iter_insert = text_buffer->get_insert()->get_iter();
@@ -424,7 +448,7 @@ void CtTextView::for_event_after_key_press(GdkEvent* event, const Glib::ustring&
                 replace_text(char_1, offset_1, offset_1+1);
             }
         }
-    }
+    } 
     else if (event->key.state & Gdk::SHIFT_MASK)
     {
         if (event->key.keyval == GDK_KEY_Return)
@@ -450,18 +474,6 @@ void CtTextView::for_event_after_key_press(GdkEvent* event, const Glib::ustring&
         Gtk::TextIter iter_start = iter_insert;
         if (event->key.keyval == GDK_KEY_Return)
         {
-            if (_pCtMainWin->get_ct_config()->enableMdFormatting && syntaxHighlighting == CtConst::RICH_TEXT_ID) {
-                // Format the last line
-                auto start_iter = iter_start;
-                start_iter.backward_line();
-                try {
-                    _markdown_check_and_replace(text_buffer, start_iter, iter_insert);
-                    text_buffer->insert_at_cursor(CtConst::CHAR_NEWLINE);
-                    iter_start  = text_buffer->get_insert()->get_iter();
-                    iter_insert = iter_start;
-                } catch(CtParseError&) {}
-            }
-            
             int cursor_key_press = iter_insert.get_offset();
             //print "cursor_key_press", cursor_key_press
             if (cursor_key_press == _pCtMainWin->get_ct_actions()->getCtMainWin()->cursor_key_press())
@@ -614,51 +626,9 @@ void CtTextView::for_event_after_key_press(GdkEvent* event, const Glib::ustring&
                     if (iter_start.get_line_offset() == 0 and iter_start.get_char() == g_utf8_get_char(CtConst::CHAR_COLON))
                         // ":: " becoming "▪ " at line start
                         _special_char_replace(CtConst::CHARS_LISTBUL_DEFAULT[2], iter_start, iter_insert);
-                } else if (_pCtMainWin->get_ct_config()->enableMdFormatting && syntaxHighlighting == CtConst::RICH_TEXT_ID) {
-                    auto word_start = iter_insert;
-                    if (word_start.backward_chars(2)) {
-                        if (!word_start.inside_word() && !word_start.ends_word() && !word_start.starts_line()) {
-                            if (Glib::ustring(1, word_start.get_char()) != " ") {
-                                word_start.backward_sentence_start();
-                                try {
-                                    _markdown_check_and_replace(text_buffer, word_start, iter_insert);
-                                    text_buffer->insert_at_cursor(" ");
-                                } catch(CtParseError&) {}
-                            }
-                        }
-                    }
                 }
             }
         }
-    }
-}
-
-void CtTextView::_markdown_check_and_replace(Glib::RefPtr<Gtk::TextBuffer> text_buffer, Gtk::TextIter start_iter, Gtk::TextIter end_iter) 
-{
-    Glib::ustring text(start_iter, end_iter);
-    if (text.empty() || text == " ") return;
-    
-    if (!_md_parser) _md_parser = std::make_unique<CtMDParser>(_pCtMainWin->get_ct_config());
-    else _md_parser->wipe();
-    
-    try {
-        auto iter_pair = _md_parser->find_formatting_boundaries(std::move(start_iter), std::move(end_iter));
-        text = Glib::ustring(iter_pair.first, iter_pair.second);
-    
-        std::stringstream txt(text);
-        _md_parser->feed(txt);
-    
-        text_buffer->erase(iter_pair.first, iter_pair.second);
-        auto cursor = text_buffer->get_insert()->get_iter();
-        if (cursor.backward_char()) {
-            text_buffer->place_cursor(cursor);
-        }
-    
-        if (!_clipboard) _clipboard = std::make_unique<CtClipboard>(_pCtMainWin);
-        _clipboard->from_xml_string_to_buffer(std::move(text_buffer), _md_parser->to_string());
-    } catch(CtParseError&) {
-        // todo: log this in debug
-        throw;
     }
 }
 
@@ -738,7 +708,7 @@ void CtTextView::zoom_text(bool is_increase)
 }
 
 void CtTextView::set_spell_check(bool allow_on)
-{    
+{
     auto gtk_view = GTK_TEXT_VIEW(gobj());
     auto gtk_buffer = gtk_text_view_get_buffer (gtk_view);
     auto gspell_buffer = gspell_text_buffer_get_from_gtk_text_buffer (gtk_buffer);

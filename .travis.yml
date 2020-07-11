@@ -10,10 +10,8 @@ jobs:
         apt:
           update: true
     - os: windows
-      cache:
-        directories:
-        - $HOME/AppData/Local/Temp/chocolatey
-        - /C/tools/msys64
+    - os: osx
+      osx_image: xcode11.4
 
 compiler:
   - gcc
@@ -22,7 +20,7 @@ before_install:
 - |-
     case $TRAVIS_OS_NAME in
       linux)
-        sudo apt install build-essential libgtkmm-3.0-dev
+        sudo apt install build-essential libgtkmm-3.0-dev xvfb
         sudo apt install libgtksourceviewmm-3.0-dev libxml++2.6-dev libsqlite3-dev
         sudo apt install libcpputest-dev gettext python3-lxml libgspell-1-dev libcurl4-openssl-dev
         ;;
@@ -49,13 +47,10 @@ before_install:
         export PATH=/C/tools/msys64/mingw64/bin:$PATH
         export MAKE=mingw32-make  # so that Autotools can find it
         ;;
-    esac
-before_cache:
-- |-
-    case $TRAVIS_OS_NAME in
-      windows)
-        # https://unix.stackexchange.com/a/137322/107554
-        $msys2 pacman --sync --clean --noconfirm
+      osx)
+        brew update
+        brew install python3 pip3 cmake pkg-config gtksourceviewmm3 gnome-icon-theme gspell libxml++ cpputest
+        pip3 install lxml
         ;;
     esac
 install:
@@ -86,7 +81,7 @@ script:
     case $TRAVIS_OS_NAME in
       linux)
         cd ${TRAVIS_BUILD_DIR}/future
-        ./build.sh Release
+        xvfb-run ./build.sh Release
         ;;
       windows)
         cd ${TRAVIS_BUILD_DIR}
@@ -94,5 +89,12 @@ script:
         $mingw64 cmake -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DCMAKE_MAKE_PROGRAM=mingw32-make.exe -DCMAKE_BUILD_TYPE=Release -G 'MSYS Makefiles' ../future
         $mingw64 mingw32-make -j$(nproc --all)
         $mingw64 ./tests/run_tests
+        ;;
+      osx)
+        cd ${TRAVIS_BUILD_DIR}
+        mkdir build && cd build
+        cmake ../future
+        make -j$(sysctl -n hw.ncpu)
+        ./tests/run_tests
         ;;
     esac

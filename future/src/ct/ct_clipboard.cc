@@ -41,7 +41,8 @@ const Glib::ustring TARGET_CTD_PLAIN_TEXT = "UTF8_STRING";
 const Glib::ustring TARGET_CTD_RICH_TEXT = "CTD_RICH";
 const Glib::ustring TARGET_CTD_TABLE = "CTD_TABLE";
 const Glib::ustring TARGET_CTD_CODEBOX = "CTD_CODEBOX";
-const std::vector<Glib::ustring> TARGETS_HTML = {"text/html", "HTML Format"};
+const Glib::ustring TARGET_WIN_HTML = "HTML Format";
+const std::vector<Glib::ustring> TARGETS_HTML = {"text/html", TARGET_WIN_HTML};
 const Glib::ustring TARGET_URI_LIST = "text/uri-list";
 const std::vector<Glib::ustring> TARGETS_PLAIN_TEXT = {"UTF8_STRING", "COMPOUND_TEXT", "STRING", "TEXT"};
 const std::vector<Glib::ustring> TARGETS_IMAGES = {"image/png", "image/jpeg", "image/bmp", "image/tiff", "image/x-MS-bmp", "image/x-bmp"};
@@ -163,6 +164,11 @@ void CtClipboard::_paste_clipboard(Gtk::TextView* pTextView, CtCodebox* /*pCodeb
                 return std::make_tuple(TARGET_CTD_CODEBOX, received_codebox, false);
             if (vec::exists(targets, TARGET_CTD_TABLE))
                 return std::make_tuple(TARGET_CTD_TABLE, received_table, false);
+#if defined(_WIN32)
+            // on win32 win html has priority
+            if (vec::exists(targets, TARGET_WIN_HTML))
+                return std::make_tuple(TARGET_WIN_HTML, received_html, false);
+#endif
             for (auto& target: TARGETS_HTML)
                 if (vec::exists(targets, target))
                     return std::make_tuple(target, received_html, false);
@@ -210,6 +216,26 @@ void CtClipboard::table_row_paste(CtTable* pTable)
         auto received_table = [win, view, pTable](const Gtk::SelectionData& s) { CtClipboard(win)._on_received_to_table(s, view, false, pTable);};
         Gtk::Clipboard::get()->request_contents(TARGET_CTD_TABLE, received_table);
     }
+}
+
+void CtClipboard::node_link_to_clipboard(CtTreeIter node)
+{
+    CtClipboardData* clip_data = new CtClipboardData();
+    std::string tml = R"XML(<?xml version="1.0" encoding="UTF-8"?><root><slot><rich_text link="node {}">{}</rich_text></slot></root>)XML";
+    clip_data->rich_text = fmt::format(tml, node.get_node_id(), str::xml_escape(node.get_node_name()));
+    clip_data->plain_text = "node: " + node.get_node_name();
+
+    _set_clipboard_data({TARGET_CTD_RICH_TEXT, TARGET_CTD_PLAIN_TEXT}, clip_data);
+}
+
+void CtClipboard::anchor_link_to_clipboard(CtTreeIter node, const Glib::ustring& anchor_name)
+{
+    CtClipboardData* clip_data = new CtClipboardData();
+    std::string tml = R"XML(<?xml version="1.0" encoding="UTF-8"?><root><slot><rich_text link="node {} {}">{}</rich_text></slot></root>)XML";
+    clip_data->rich_text = fmt::format(tml, node.get_node_id(), str::xml_escape(anchor_name), str::xml_escape(anchor_name));
+    clip_data->plain_text = "anchor: " + anchor_name;
+
+    _set_clipboard_data({TARGET_CTD_RICH_TEXT, TARGET_CTD_PLAIN_TEXT}, clip_data);
 }
 
 // Given text_buffer and selection, returns the rich text xml
@@ -295,6 +321,14 @@ void CtClipboard::_selection_to_clipboard(Glib::RefPtr<Gtk::TextBuffer> text_buf
             if (CtImage* image = dynamic_cast<CtImage*>(widget_vector.front()))
             {
                 pixbuf_target = image;
+#ifdef _WIN32
+                // image target doesn't work on Win32 with other targets, so have to set it directly
+                // then copy/paste into MS Paint will work. Pasting into CT back also will work
+                if (image->get_type() == CtAnchWidgType::ImagePng) {
+                    Gtk::Clipboard::get()->set_image(image->get_pixbuf());
+                    return;
+                }
+#endif
             }
             else if (CtTable* table = dynamic_cast<CtTable*>(widget_vector.front()))
             {
@@ -416,7 +450,7 @@ void  CtClipboard::_on_clip_data_get(Gtk::SelectionData& selection_data, CtClipb
 // From Clipboard to Plain Text
 void CtClipboard::_on_received_to_plain_text(const Gtk::SelectionData& selection_data, Gtk::TextView* pTextView, bool force_plain_text)
 {
-    Glib::ustring plain_text = selection_data.get_text();
+    Glib::ustring plain_text = str::sanitize_bad_symbols(selection_data.get_text());
     if (plain_text.empty())
     {
         spdlog::error("? no clipboard plain text");
@@ -561,12 +595,14 @@ void CtClipboard::_on_received_to_table(const Gtk::SelectionData& selection_data
 // From Clipboard to HTML Text
 void CtClipboard::_on_received_to_html(const Gtk::SelectionData& selection_data, Gtk::TextView* pTextView, bool)
 {
-    CtHtml2Xml parser(_pCtMainWin->get_ct_config());
 #ifdef _WIN32
-    parser.feed(Win32HtmlFormat().convert_from_ms_clipboard(selection_data.get_data_as_string()));
+    Glib::ustring html_content = str::sanitize_bad_symbols(Win32HtmlFormat().convert_from_ms_clipboard(selection_data.get_data_as_string()));
 #else
-    parser.feed(selection_data.get_data_as_string());
+    Glib::ustring html_content = str::sanitize_bad_symbols(selection_data.get_data_as_string());
 #endif
+
+    CtHtml2Xml parser(_pCtMainWin->get_ct_config());
+    parser.feed(html_content);
     from_xml_string_to_buffer(pTextView->get_buffer(), parser.to_string());
     pTextView->scroll_to(pTextView->get_buffer()->get_insert());
 }
@@ -583,11 +619,11 @@ void CtClipboard::_on_received_to_image(const Gtk::SelectionData& selection_data
 // From Clipboard to URI list
 void CtClipboard::_on_received_to_uri_list(const Gtk::SelectionData& selection_data, Gtk::TextView* pTextView, bool)
 {
-    // todo: selection_data = re.sub(cons.BAD_CHARS, "", selectiondata.data)
+    Glib::ustring uri_content = str::sanitize_bad_symbols(selection_data.get_text());
     if (_pCtMainWin->curr_tree_iter().get_node_syntax_highlighting() != CtConst::RICH_TEXT_ID)
     {
         Gtk::TextIter iter_insert = pTextView->get_buffer()->get_insert()->get_iter();
-        pTextView->get_buffer()->insert(iter_insert, selection_data.get_text());
+        pTextView->get_buffer()->insert(iter_insert, uri_content);
     }
     else
     {

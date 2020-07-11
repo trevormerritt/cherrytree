@@ -32,8 +32,7 @@
 #include <glib-object.h>
 #include "ct_logging.h"
 
-
-CtMainWin::CtMainWin(bool             start_hidden,
+CtMainWin::CtMainWin(bool             no_gui,
                      CtConfig*        pCtConfig,
                      CtTmp*           pCtTmp,
                      Gtk::IconTheme*  pGtkIconTheme,
@@ -43,6 +42,7 @@ CtMainWin::CtMainWin(bool             start_hidden,
                      Gsv::StyleSchemeManager* pGsvStyleSchemeManager,
                      Gtk::StatusIcon*         pGtkStatusIcon)
  : Gtk::ApplicationWindow(),
+   _no_gui(no_gui),
    _pCtConfig(pCtConfig),
    _pCtTmp(pCtTmp),
    _pGtkIconTheme(pGtkIconTheme),
@@ -54,7 +54,9 @@ CtMainWin::CtMainWin(bool             start_hidden,
    _ctTextview(this),
    _ctStateMachine(this)
 {
-    set_icon(_pGtkIconTheme->load_icon(CtConst::APP_NAME, 48));
+    if (not _no_gui) {
+        set_icon(_pGtkIconTheme->load_icon(CtConst::APP_NAME, 48));
+    }
 
     _uCtActions.reset(new CtActions(this));
     _uCtMenu.reset(new CtMenu(pCtConfig, _uCtActions.get()));
@@ -124,10 +126,29 @@ CtMainWin::CtMainWin(bool             start_hidden,
     menu_set_items_special_chars();
     _uCtMenu->find_action("ct_vacuum")->signal_set_visible.emit(false);
 
-    if (start_hidden || (_pCtConfig->systrayOn && _pCtConfig->startOnSystray))
+    if (_no_gui) {
         set_visible(false);
-    else
+    } else if (_pCtConfig->systrayOn && _pCtConfig->startOnSystray) {
+        set_visible(false);
+    } else {
         present();
+    }
+
+    // show status icon if it's needed and also check if systray exists
+    if (!_no_gui && _pCtConfig->systrayOn) {
+        _pGtkStatusIcon->set_visible(true);
+        Glib::signal_idle().connect_once([&](){
+            if (!_pGtkStatusIcon->is_embedded()) { // is_embedded works only in main event loop
+                if (_pCtConfig->startOnSystray) {
+                    spdlog::warn("Start on systray is enabled but system does not support system trays, starting normally");
+                }
+                _pGtkStatusIcon->set_visible(false);
+                _pCtConfig->systrayOn = false;
+                menu_set_visible_exit_app(false);
+                present();
+            }
+        });
+    }
 }
 
 CtMainWin::~CtMainWin()
@@ -348,8 +369,12 @@ Glib::ustring CtMainWin::sourceview_hovering_link_get_tooltip(const Glib::ustrin
 {
     Glib::ustring tooltip;
     auto vec = str::split(link, " ");
-    if (vec[0] == CtConst::LINK_TYPE_FILE or vec[0] == CtConst::LINK_TYPE_FOLD)
+    if (vec.size() == 1) { // case when link has wrong format
+        tooltip = str::replace(link, "amp;", "");
+    } 
+    else if (vec[0] == CtConst::LINK_TYPE_FILE or vec[0] == CtConst::LINK_TYPE_FOLD) {
         tooltip = Glib::Base64::decode(vec[1]);
+    }
     else
     {
         if (vec[0] == CtConst::LINK_TYPE_NODE)
@@ -463,10 +488,12 @@ void CtMainWin::_reset_CtTreestore_CtTreeview()
     _uCtTreeview->set_title_wrap_mode(get_ct_config()->cherryWrapWidth);
     _uCtTreeview->get_column(CtTreeView::AUX_ICON_COL_NUM)->set_visible(!get_ct_config()->auxIconHide);
 
-
+    _tree_just_auto_expanded = false;
     _uCtTreeview->signal_cursor_changed().connect(sigc::mem_fun(*this, &CtMainWin::_on_treeview_cursor_changed));
     _uCtTreeview->signal_button_release_event().connect(sigc::mem_fun(*this, &CtMainWin::_on_treeview_button_release_event));
     _uCtTreeview->signal_event_after().connect(sigc::mem_fun(*this, &CtMainWin::_on_treeview_event_after));
+    _uCtTreeview->signal_row_activated().connect(sigc::mem_fun(*this, &CtMainWin::_on_treeview_row_activated));
+    _uCtTreeview->signal_test_collapse_row().connect(sigc::mem_fun(*this, &CtMainWin::_on_treeview_test_collapse_row));
     _uCtTreeview->signal_key_press_event().connect(sigc::mem_fun(*this, &CtMainWin::_on_treeview_key_press_event), false);
     _uCtTreeview->signal_scroll_event().connect(sigc::mem_fun(*this, &CtMainWin::_on_treeview_scroll_event));
     _uCtTreeview->signal_popup_menu().connect(sigc::mem_fun(*this, &CtMainWin::_on_treeview_popup_menu));
@@ -494,14 +521,11 @@ void CtMainWin::config_apply()
     _ctWinHeader.lockIcon.hide();
     _ctWinHeader.bookmarkIcon.hide();
 
-    show_hide_toolbar(_pCtConfig->toolbarVisible);
-    _pToolbar->set_toolbar_style(Gtk::ToolbarStyle::TOOLBAR_ICONS);
-    set_toolbar_icon_size(_pCtConfig->toolbarIconSize);
+    menu_rebuild_toolbar(false);
 
     _ctStatusBar.progressBar.hide();
     _ctStatusBar.stopButton.hide();
 
-    get_status_icon()->set_visible(_pCtConfig->systrayOn);
     menu_set_visible_exit_app(_pCtConfig->systrayOn);
 
     _ctTextview.set_show_line_numbers(get_ct_config()->showLineNumbers);
@@ -769,8 +793,31 @@ void CtMainWin::menu_set_items_special_chars()
 
 void CtMainWin::menu_set_visible_exit_app(bool visible)
 {
+    if (auto quit_label = CtMenu::get_accel_label(CtMenu::find_menu_item(_pMenuBar, "quit_app")))
+    {
+        quit_label->set_label(visible ? _("Hide") : _("Quit"));
+        quit_label->set_tooltip_markup(visible ?  _("Hide the Window") : _("Quit the Application"));
+    }
     CtMenu::find_menu_item(_pMenuBar, "exit_app")->set_visible(visible);
 }
+
+void CtMainWin::menu_rebuild_toolbar(bool new_toolbar)
+{
+    if (new_toolbar)
+    {
+        _vboxMain.remove(*_pToolbar);
+        _pToolbar = _uCtMenu->build_toolbar(_pRecentDocsMenuToolButton);
+        _vboxMain.pack_start(*_pToolbar, false, false);
+        _vboxMain.reorder_child(*_pToolbar, 1);
+        menu_set_items_recent_documents();
+        _pToolbar->show_all();
+    }
+
+    show_hide_toolbar(_pCtConfig->toolbarVisible);
+    _pToolbar->set_toolbar_style(Gtk::ToolbarStyle::TOOLBAR_ICONS);
+    set_toolbar_icon_size(_pCtConfig->toolbarIconSize);
+}
+
 
 void CtMainWin::config_switch_tree_side()
 {
@@ -795,10 +842,10 @@ void CtMainWin::config_switch_tree_side()
 
 void CtMainWin::_ensure_curr_doc_in_recent_docs()
 {
-    const std::string currDocFilePath = _uCtStorage->get_file_path();
+    fs::path currDocFilePath = _uCtStorage->get_file_path();
     if (not currDocFilePath.empty())
     {
-        _pCtConfig->recentDocsFilepaths.move_or_push_front(Glib::canonicalize_filename(currDocFilePath));
+        _pCtConfig->recentDocsFilepaths.move_or_push_front(fs::canonical(currDocFilePath));
         CtRecentDocRestore prevDocRestore;
         prevDocRestore.exp_coll_str = _uCtTreestore->treeview_get_tree_expanded_collapsed_string(*_uCtTreeview);
         const CtTreeIter prevTreeIter = curr_tree_iter();
@@ -808,7 +855,7 @@ void CtMainWin::_ensure_curr_doc_in_recent_docs()
             const Glib::RefPtr<Gsv::Buffer> rTextBuffer = prevTreeIter.get_node_text_buffer();
             prevDocRestore.cursor_pos = rTextBuffer->property_cursor_position();
         }
-        _pCtConfig->recentDocsRestore[currDocFilePath] = prevDocRestore;
+        _pCtConfig->recentDocsRestore[currDocFilePath.string()] = prevDocRestore;
     }
 }
 
@@ -822,18 +869,18 @@ void CtMainWin::_zoom_tree(bool is_increase)
     _uCtTreeview->override_font(description);
 }
 
-bool CtMainWin::file_open(const std::string& filepath, const std::string& node_to_focus)
+bool CtMainWin::file_open(const fs::path& filepath, const std::string& node_to_focus, const Glib::ustring password)
 {
-    if (!Glib::file_test(filepath, Glib::FILE_TEST_IS_REGULAR)) {
+    if (!fs::is_regular_file(filepath)) {
         CtDialogs::error_dialog("File does not exist", *this);
         return false;
     }
-    if (CtMiscUtil::get_doc_type(filepath) == CtDocType::None) {
+    if (fs::get_doc_type(filepath) == CtDocType::None) {
         // can't open file but can insert content into a new node
         if (file_insert_plain_text(filepath)) {
             return false; // that's right
         } else {
-            CtDialogs::error_dialog(str::format(_("\"%s\" is Not a CherryTree Document"), filepath), *this);
+            CtDialogs::error_dialog(str::format(_("\"%s\" is Not a CherryTree Document"), filepath.string()), *this);
             return false;
         }
     }
@@ -841,18 +888,20 @@ bool CtMainWin::file_open(const std::string& filepath, const std::string& node_t
     if (!file_save_ask_user())
         return false;
 
-    std::string prev_path = _uCtStorage->get_file_path();
+    fs::path prev_path = _uCtStorage->get_file_path();
 
     _ensure_curr_doc_in_recent_docs();
     reset(); // cannot reset after load_from because load_from fill tree store
 
     Glib::ustring error;
-    auto new_storage = CtStorageControl::load_from(this, filepath, error);
+    auto new_storage = CtStorageControl::load_from(this, filepath, error, password);
     if (!new_storage) {
-        CtDialogs::error_dialog("Error Parsing the CherryTree File", *this);
+        if (not error.empty()) {
+            CtDialogs::error_dialog(str::format(_("Error Parsing the CherryTree File:\n\"%s\""), error), *this);
+        }
 
         // trying to recover prevous document
-        if (prev_path != "")
+        if (!prev_path.empty())
             file_open(prev_path, ""); // it won't be in loop because storage is empty
         return false;                 // show the given document is not loaded
     }
@@ -861,10 +910,10 @@ bool CtMainWin::file_open(const std::string& filepath, const std::string& node_t
 
     _title_update(false/*saveNeeded*/);
     menu_set_bookmark_menu_items();
-    bool can_vacuum = CtMiscUtil::get_doc_type(_uCtStorage->get_file_path()) == CtDocType::SQLite;
+    bool can_vacuum = fs::get_doc_type(_uCtStorage->get_file_path()) == CtDocType::SQLite;
     _uCtMenu->find_action("ct_vacuum")->signal_set_visible.emit(can_vacuum);
 
-    const auto iterDocsRestore{_pCtConfig->recentDocsRestore.find(filepath)};
+    const auto iterDocsRestore{_pCtConfig->recentDocsRestore.find(filepath.string())};
     switch (_pCtConfig->restoreExpColl)
     {
         case CtRestoreExpColl::ALL_EXP:
@@ -894,16 +943,18 @@ bool CtMainWin::file_open(const std::string& filepath, const std::string& node_t
         }
     }
 
-    if (!node_is_set && iterDocsRestore != _pCtConfig->recentDocsRestore.end())
+    if ( not _no_gui and
+         not node_is_set
+         and iterDocsRestore != _pCtConfig->recentDocsRestore.end() )
     {
         _uCtTreestore->treeview_set_tree_path_n_text_cursor(_uCtTreeview.get(),
-                                                   &_ctTextview,
-                                                   iterDocsRestore->second.node_path,
-                                                   iterDocsRestore->second.cursor_pos);
+                                                            &_ctTextview,
+                                                            iterDocsRestore->second.node_path,
+                                                            iterDocsRestore->second.cursor_pos);
         _ctTextview.grab_focus();
     }
 
-    get_ct_config()->recentDocsFilepaths.move_or_push_front(Glib::canonicalize_filename(filepath));
+    get_ct_config()->recentDocsFilepaths.move_or_push_front(fs::canonical(filepath));
     menu_set_items_recent_documents();
 
     return true;
@@ -959,23 +1010,36 @@ void CtMainWin::file_save(bool need_vacuum)
     }
 }
 
-void CtMainWin::file_save_as(const std::string& new_filepath, const std::string& password)
+void CtMainWin::file_save_as(const std::string& new_filepath, const Glib::ustring& password)
 {
     Glib::ustring error;
-    auto new_storage = CtStorageControl::save_as(this, new_filepath, password, error);
+    std::unique_ptr<CtStorageControl> new_storage(CtStorageControl::save_as(this, new_filepath, password, error));
     if (!new_storage)
     {
         CtDialogs::error_dialog(error, *this);
         return;
     }
 
-    _uCtStorage.reset(new_storage);
+    // remember expanded nodes for new file
+    CtRecentDocRestore doc_state_restore;
+    doc_state_restore.exp_coll_str = _uCtTreestore->treeview_get_tree_expanded_collapsed_string(*_uCtTreeview);
+    if (const CtTreeIter curr_iter = curr_tree_iter())
+    {
+        doc_state_restore.node_path = _uCtTreestore->get_path(curr_iter).to_string();
+        doc_state_restore.cursor_pos = curr_iter.get_node_text_buffer()->property_cursor_position();
+    }
+    _pCtConfig->recentDocsFilepaths.move_or_push_front(fs::canonical(new_filepath));
+    _pCtConfig->recentDocsRestore[new_filepath] = doc_state_restore;
 
-    bool can_vacuum = CtMiscUtil::get_doc_type(_uCtStorage->get_file_path()) == CtDocType::SQLite;
-    _uCtMenu->find_action("ct_vacuum")->signal_set_visible.emit(can_vacuum);
+    // it' a hack to recover expanded nodes for new file
+    auto old_restore = _pCtConfig->restoreExpColl;
+    auto on_scope_exit = scope_guard([&](void*) { _pCtConfig->restoreExpColl = old_restore; });
+    _pCtConfig->restoreExpColl = CtRestoreExpColl::FROM_STR;
 
-    update_window_save_not_needed();
-    get_state_machine().update_state();
+    // instead of setting all inner states, it's easer just to re-open file
+    new_storage.reset();               // we don't need it
+    update_window_save_not_needed();   // remove asking to save when we close the old file
+    file_open(new_filepath, "", password);
 }
 
 void CtMainWin::file_autosave_restart()
@@ -1003,16 +1067,17 @@ void CtMainWin::file_autosave_restart()
     }, get_ct_config()->autosaveVal * 60);
 }
 
-bool CtMainWin::file_insert_plain_text(const std::string& filepath)
+bool CtMainWin::file_insert_plain_text(const fs::path& filepath)
 {
     spdlog::debug("trying to insert text file as node: {}", filepath);
 
     gchar *text = nullptr;
     gsize length = 0;
     try {
-        if (g_file_get_contents (filepath.c_str(), &text, &length, NULL)) {
+        if (g_file_get_contents (filepath.c_str(), &text, &length, nullptr)) {
             Glib::ustring node_content(text, length);
-            std::string name = Glib::path_get_basename(filepath);
+            node_content = str::sanitize_bad_symbols(node_content);
+            std::string name = filepath.filename().string();
             get_ct_actions()->_node_child_exist_or_create(Gtk::TreeIter(), name);
             get_text_view().get_buffer()->insert(get_text_view().get_buffer()->end(), node_content);
             g_free(text);
@@ -1048,7 +1113,9 @@ void CtMainWin::reset()
     update_window_save_not_needed();
     _ctTextview.set_buffer(Glib::RefPtr<Gtk::TextBuffer>());
     _ctTextview.set_spell_check(false);
-    _ctTextview.set_sensitive(false);
+    if (not _no_gui) {
+        _ctTextview.set_sensitive(false);
+    }
 }
 
 bool CtMainWin::get_file_save_needed()
@@ -1280,6 +1347,7 @@ bool CtMainWin::_on_treeview_button_release_event(GdkEventButton* event)
         _uCtMenu->get_popup_menu(CtMenu::POPUP_MENU_TYPE::Node)->popup(event->button, event->time);
         return true;
     }
+
     return false;
 }
 
@@ -1301,16 +1369,19 @@ void CtMainWin::_on_treeview_event_after(GdkEvent* event)
         if (get_ct_config()->treeClickFocusText) {
             get_text_view().grab_focus();
         }
-        if (get_ct_config()->treeClickExpand) {
-
+        if (get_ct_config()->treeClickExpand)
+        {
+            _tree_just_auto_expanded = false;
             Gtk::TreePath path_at_click;
             if (get_tree_view().get_path_at_pos((int)event->button.x, (int)event->button.y, path_at_click))
-                if (!get_tree_view().row_expanded(path_at_click))
+                if (!get_tree_view().row_expanded(path_at_click)) {
                     get_tree_view().expand_row(path_at_click, false);
-
+                    _tree_just_auto_expanded = true;
+                }
         }
     }
-    if (event->type == GDK_BUTTON_PRESS && event->button.button == 2 /* wheel click */) {
+    if (event->type == GDK_BUTTON_PRESS && event->button.button == 2 /* wheel click */)
+    {
         auto path = get_tree_store().get_path(curr_tree_iter());
         if (_uCtTreeview->row_expanded(path))
             _uCtTreeview->collapse_row(path);
@@ -1319,12 +1390,46 @@ void CtMainWin::_on_treeview_event_after(GdkEvent* event)
     }
     else if (event->type == GDK_2BUTTON_PRESS and event->button.button == 1)
     {
-        auto path = get_tree_store().get_path(curr_tree_iter());
-        if (_uCtTreeview->row_expanded(path))
-            _uCtTreeview->collapse_row(path);
-        else
-            _uCtTreeview->expand_row(path, false);
+        // _on_treeview_row_activated works better for double-click
+        // but it doesn't work with one click
+        // in this case use real double click
+        if (get_ct_config()->treeClickExpand)
+        {
+            Gtk::TreePath path_at_click;
+            if (get_tree_view().get_path_at_pos((int)event->button.x, (int)event->button.y, path_at_click))
+                if (path_at_click == get_tree_store().get_path(curr_tree_iter()))
+                {
+                    if (_uCtTreeview->row_expanded(path_at_click))
+                        _uCtTreeview->collapse_row(path_at_click);
+                    else
+                        _uCtTreeview->expand_row(path_at_click, false);
+                }
+        }
     }
+}
+
+void CtMainWin::_on_treeview_row_activated(const Gtk::TreeModel::Path& path, Gtk::TreeViewColumn*)
+{
+    // _on_treeview_row_activated works better for double-click
+    // but it doesn't work with one click
+    // in this case use real double click
+    if (get_ct_config()->treeClickExpand)
+        return;
+    if (_uCtTreeview->row_expanded(path))
+        _uCtTreeview->collapse_row(path);
+    else
+        _uCtTreeview->expand_row(path, false);
+}
+
+bool CtMainWin::_on_treeview_test_collapse_row(const Gtk::TreeModel::iterator&,const Gtk::TreeModel::Path&)
+{
+    // to fix one click
+    if (get_ct_config()->treeClickExpand)
+        if (_tree_just_auto_expanded) {
+            _tree_just_auto_expanded = false;
+            return true;
+        }
+    return false;
 }
 
 bool CtMainWin::_on_treeview_key_press_event(GdkEventKey* event)
@@ -1732,7 +1837,7 @@ void CtMainWin::_title_update(const bool saveNeeded)
     }
     if (_uCtStorage->get_file_path() != "")
     {
-        title += _uCtStorage->get_file_name() + " - " + _uCtStorage->get_file_dir() + " - ";
+        title += _uCtStorage->get_file_name().string() + " - " + _uCtStorage->get_file_dir().string() + " - ";
     }
     title += "CherryTree ";
     title += CtConst::CT_VERSION;

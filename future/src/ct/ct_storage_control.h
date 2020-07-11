@@ -1,7 +1,9 @@
 /*
  * ct_storage_control.h
  *
- * Copyright 2017-2020 Giuseppe Penone <giuspen@gmail.com>
+ * Copyright 2009-2020
+ * Giuseppe Penone <giuspen@gmail.com>
+ * Evgenii Gurianov <https://github.com/txe>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,6 +22,7 @@
  */
 
 #pragma once
+
 #include "ct_types.h"
 #include <glibmm/miscutils.h>
 
@@ -28,8 +31,14 @@ class CtStorageControl
 {
 public:
     static CtStorageControl* create_dummy_storage(CtMainWin* pCtMainWin);
-    static CtStorageControl* load_from(CtMainWin* pCtMainWin, const Glib::ustring& file_path, Glib::ustring& error);
-    static CtStorageControl* save_as(CtMainWin* pCtMainWin, const Glib::ustring& file_path, const Glib::ustring& password, Glib::ustring& error);
+    static CtStorageControl* load_from(CtMainWin* pCtMainWin,
+                                       const fs::path& file_path,
+                                       Glib::ustring& error,
+                                       Glib::ustring password = "");
+    static CtStorageControl* save_as(CtMainWin* pCtMainWin,
+                                     const fs::path& file_path,
+                                     const Glib::ustring& password,
+                                     Glib::ustring& error);
 
 public:
     bool save(bool need_vacuum, Glib::ustring& error);
@@ -37,19 +46,19 @@ public:
  private:
     CtStorageControl() = default;
 
-    static std::string _extract_file(CtMainWin* pCtMainWin, const std::string& file_path, std::string& password);
-    static bool        _package_file(const Glib::ustring& file_from, const Glib::ustring& file_to, const Glib::ustring& password);
+    static fs::path _extract_file(CtMainWin* pCtMainWin, const fs::path& file_path, Glib::ustring& password);
+    static bool     _package_file(const fs::path& file_from, const fs::path& file_to, const Glib::ustring& password);
 
-    void _put_in_backup(const Glib::ustring& main_backup);
+    void _put_in_backup(const fs::path& main_backup);
 
 public:
     Glib::RefPtr<Gsv::Buffer> get_delayed_text_buffer(const gint64& node_id,
                                                       const std::string& syntax,
                                                       std::list<CtAnchoredWidget*>& widgets) const;
 
-    Glib::ustring get_file_path() { return _file_path; }
-    Glib::ustring get_file_name() { return _file_path.empty() ? "" : Glib::path_get_basename(_file_path); }
-    Glib::ustring get_file_dir()  { return _file_path.empty() ? "" : Glib::path_get_dirname(_file_path); }
+    const fs::path& get_file_path() { return _file_path; }
+    fs::path get_file_name() { return _file_path.empty() ? "" : _file_path.filename(); }
+    fs::path get_file_dir()  { return _file_path.empty() ? "" : _file_path.parent_path(); }
 
     std::set<gint64> get_nodes_pending_rm() { return _syncPending.nodes_to_rm_set; }
 
@@ -66,18 +75,17 @@ public:
      * encrypted files 
      * @param path: The path to the external CT file
      */
-    void add_nodes_from_storage(const std::string& path);    
+    void add_nodes_from_storage(const fs::path& path);
 
 private:
     CtMainWin*                       _pCtMainWin{nullptr};
-    Glib::ustring                    _file_path;
+    fs::path                         _file_path;
     Glib::ustring                    _password;
-    Glib::ustring                    _extracted_file_path;
+    fs::path                         _extracted_file_path;
     bool                             _need_backup{true};   // create a backup once, on the first saving
     std::unique_ptr<CtStorageEntity> _storage;
     CtStorageSyncPending             _syncPending;
 };
-
 
 class CtImagePng;
 class CtStorageCache

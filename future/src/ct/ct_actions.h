@@ -57,7 +57,7 @@ private:
 
 private:
     size_t                          _next_opened_emb_file_id{1};
-    std::map<Glib::ustring, time_t> _embfiles_opened;
+    std::map<fs::path, time_t>      _embfiles_opened;
     sigc::connection                _embfiles_timeout_connection;
 
 private:
@@ -181,6 +181,7 @@ public:
     void tree_sort_ascending();
     void tree_sort_descending();
     void tree_info();
+    void node_link_to_clipboard();
     void node_siblings_sort_ascending();
     void node_siblings_sort_descending();
     void node_go_back();    // was as go_back
@@ -347,6 +348,7 @@ public:
     void anchor_copy();
     void anchor_delete();
     void anchor_edit();
+    void anchor_link_to_clipboard();
     void embfile_cut();
     void embfile_copy();
     void embfile_delete();
@@ -415,16 +417,17 @@ public:
     void import_directory_from_pandoc() noexcept;
     void import_nodes_from_gnote_directory() noexcept;
     void import_nodes_from_tomboy_directory() noexcept;
+    void import_nodes_from_keepnote_directory() noexcept;
 
 private:
     // helper for export actions
-    void _export_print(bool save_to_pdf, Glib::ustring auto_path, bool auto_overwrite);
-    void _export_to_html(Glib::ustring auto_path, bool auto_overwrite);
-    void _export_to_txt(bool is_single, Glib::ustring auto_path, bool auto_overwrite);
+    void _export_print(bool save_to_pdf, const fs::path& auto_path, bool auto_overwrite);
+    void _export_to_html(const fs::path& auto_path, bool auto_overwrite);
+    void _export_to_txt(bool is_single, const fs::path& auto_path, bool auto_overwrite);
 
-    Glib::ustring _get_pdf_filepath(Glib::ustring proposed_name);
-    Glib::ustring _get_txt_filepath(Glib::ustring proposed_name);
-    Glib::ustring _get_txt_folder(Glib::ustring dir_place, Glib::ustring new_folder, bool export_overwrite);
+    fs::path _get_pdf_filepath(const fs::path& proposed_name);
+    fs::path _get_txt_filepath(const fs::path& proposed_name);
+    fs::path _get_txt_folder(fs::path dir_place, fs::path new_folder, bool export_overwrite);
 
 public:
     // export actions

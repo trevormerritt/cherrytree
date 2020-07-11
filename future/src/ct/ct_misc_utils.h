@@ -23,22 +23,20 @@
 
 #pragma once
 
+#include "ct_types.h"
 #include <gtksourceviewmm.h>
 #include <gtkmm/treeiter.h>
 #include <gtkmm/treestore.h>
-#include <unordered_set>
-#include "ct_treestore.h"
-#include "ct_types.h"
 #include <spdlog/fmt/fmt.h>
-#include <spdlog/fmt/ostr.h> // to support Glib::ustring formatting
+#include <unordered_set>
 #include <type_traits>
 
 class CtConfig;
+class CtTreeIter;
 
 template<class F> auto scope_guard(F&& f) {
     return std::unique_ptr<void, typename std::decay<F>::type>{(void*)1, std::forward<F>(f)};
 }
-
 
 namespace CtCSV {
     using CtStringTable = std::vector<std::vector<std::string>>;
@@ -50,11 +48,7 @@ namespace CtMiscUtil {
 
 std::string get_ct_language();
 
-CtDocType get_doc_type(const std::string& fileName);
-
-CtDocEncrypt get_doc_encrypt(const std::string& fileName);
-
-const gchar* get_doc_extension(const CtDocType ctDocType, const CtDocEncrypt ctDocEncrypt);
+std::string get_doc_extension(const CtDocType ctDocType, const CtDocEncrypt ctDocEncrypt);
 
 void filepath_extension_fix(const CtDocType ctDocType, const CtDocEncrypt ctDocEncrypt, std::string& filepath);
 
@@ -129,10 +123,14 @@ void rich_text_attributes_update(const Gtk::TextIter& text_iter, std::map<std::s
 
 bool tag_richtext_toggling_on_or_off(const Gtk::TextIter& text_iter);
 
+using CurrAttributesMap = std::map<std::string_view, std::string>;
+using SerializeFunc = std::function<void(Gtk::TextIter& start_iter,
+                                         Gtk::TextIter& end_iter,
+                                         CurrAttributesMap& curr_attributes)>;
 void generic_process_slot(int start_offset,
                           int end_offset,
-                          Glib::RefPtr<Gtk::TextBuffer>& text_buffer,
-                          std::function<void(Gtk::TextIter&/*start_iter*/, Gtk::TextIter&/*curr_iter*/, std::map<std::string_view, std::string>&/*curr_attributes*/)> serialize_func);
+                          const Glib::RefPtr<Gtk::TextBuffer>& rTextBuffer,
+                          SerializeFunc serialize_func);
 
 const gchar* get_text_iter_alignment(const Gtk::TextIter& textIter, CtMainWin* pCtMainWin);
 
@@ -150,11 +148,15 @@ guint32 guint32_from_hex_chars(const char* hexChars, guint8 numChars);
 
 std::vector<gint64> gstring_split_to_int64(const gchar* inStr, const gchar* delimiter, gint max_tokens=-1);
 
+// returned pointer must be freed with g_strfreev()
+gchar** vector_to_array(const std::vector<std::string>& inVec);
+
 template<class type>
 int custom_compare(const type& str, const gchar* el)
 {
    return g_strcmp0(str, el);
 }
+
 template<>
 inline int custom_compare<std::string_view>(const std::string_view& str, const gchar* el)
 {
@@ -195,6 +197,9 @@ Glib::ustring highlight_words(const Glib::ustring& text, std::vector<Glib::ustri
 Glib::ustring get_accelerator_label(const std::string& accelerator);
 
 std::string get_internal_link_from_http_url(std::string link_url);
+
+/// reverse get_internal_link_from_http_url and strips internal identifiers
+std::string external_uri_from_internal(std::string internal_uri);
 
 } // namespace CtStrUtil
 
@@ -258,6 +263,8 @@ int indexOf(const std::array<T, size>& array, const T& uc)
 
 std::string xml_escape(const std::string& text);
 
+Glib::ustring sanitize_bad_symbols(const Glib::ustring& xml_content);
+
 std::string re_escape(const std::string& text);
 
 std::string time_format(const std::string& format, const time_t& time);
@@ -306,6 +313,7 @@ std::vector<STRING> split(const STRING& strToSplit, const char* delimiter)
     g_strfreev(arrayOfStrings);
     return vecOfStrings;
 }
+
 
 template<class STRING>
 std::string join(const std::vector<STRING>& cnt, const std::string& delimer)
@@ -410,89 +418,3 @@ bool exists(const MAP& m, const KEY& key)
 }
 
 } // namespace map
-
-namespace CtFileSystem {
-class path;
-// From Slash to Backslash when needed
-std::string get_proper_platform_filepath(std::string filepath);
-
-bool copy_file(const std::string& from_file, const std::string& to_file);
-
-bool move_file(const std::string& from_file, const std::string& to_file);
-
-path abspath(const path& path);
-
-bool exists(const path& filepath);
-
-bool is_directory(const path& path);
-
-time_t getmtime(const std::string& path);
-
-int getsize(const std::string& path);
-
-std::list<std::string> get_dir_entries(const std::string& dir);
-std::string get_file_stem(const std::string& path);
-
-void external_filepath_open(const path& filepath, bool open_folder_if_file_not_exists, CtConfig* config);
-void external_folderpath_open(const path& folderpath, CtConfig* config);
-
-std::string prepare_export_folder(const std::string& dir_place, std::string new_folder, bool overwrite_existing);
-
-bool rmdir(const std::string& dir);
-
-std::string get_cherrytree_datadir();
-std::string get_cherrytree_localedir();
-std::string get_cherrytree_configdir();
-std::string get_cherrytree_lang_filepath();
-
-std::string download_file(const std::string& filepath);
-
-/**
- * @class path
- * @brief An object representing a filepath
- */
-class path {
-    using path_type = std::string;
-public:
-    path(path_type path) : _path(std::move(path)) {}
-    path(const char* path) : _path(path) {}
-    
-    ~path() = default;
-    
-    void append(const path& other) {
-        _path = Glib::build_filename(_path, other._path);
-    }
-
-    path& operator=(std::string other) {
-        _path.swap(other);
-        return *this;
-    }
-
-
-    friend path operator/(const path& lhs, const path& rhs) {
-        return path(Glib::build_filename(lhs._path, rhs._path));
-    }
-
-    friend path operator/(const path& lhs, const std::string& rhs) {
-        return path(Glib::build_filename(lhs._path, rhs));
-    }
-
-    friend void operator+=(path& lhs, const path& rhs) { lhs._path += rhs._path; }
-    friend void operator+=(path& lhs, const std::string& rhs) { lhs._path += rhs; }
-    
-    const char* c_str() const { return string().c_str(); };
-    std::string string() const { return get_proper_platform_filepath(_path); }
-private:
-    path_type _path;
-};
-} // namespace CtFileSystem
-
-template<>
-struct fmt::formatter<CtFileSystem::path> {
-    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
-    template<typename FormatContext>
-        auto format(const CtFileSystem::path& path, FormatContext& ctx) {
-            return format_to(ctx.out(), "{}", path.string());
-        }
-};
-

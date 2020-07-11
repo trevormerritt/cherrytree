@@ -366,6 +366,8 @@ Gtk::Widget* CtPrefDlg::build_tab_rich_text()
     Gtk::RadioButton* radiobutton_rt_col_dark = Gtk::manage(new Gtk::RadioButton(_("Dark Background, Light Text")));
     radiobutton_rt_col_dark->join_group(*radiobutton_rt_col_light);
     Gtk::RadioButton* radiobutton_rt_col_custom = Gtk::manage(new Gtk::RadioButton(_("Custom Background")));
+    radiobutton_rt_col_custom->set_sensitive(false);
+    radiobutton_rt_col_custom->set_tooltip_text(_("Disabled in Development Version"));
     radiobutton_rt_col_custom->join_group(*radiobutton_rt_col_light);
     Gtk::HBox* hbox_rt_col_custom = Gtk::manage(new Gtk::HBox());
     hbox_rt_col_custom->set_spacing(4);
@@ -914,6 +916,8 @@ Gtk::Widget* CtPrefDlg::build_tab_tree_2()
     Gtk::Label* label_tree_nodes_names_width = Gtk::manage(new Gtk::Label(_("Tree Nodes Names Wrapping Width")));
     Glib::RefPtr<Gtk::Adjustment> adj_tree_nodes_names_width = Gtk::Adjustment::create(pConfig->cherryWrapWidth, 10, 10000, 1);
     Gtk::SpinButton* spinbutton_tree_nodes_names_width = Gtk::manage(new Gtk::SpinButton(adj_tree_nodes_names_width));
+    spinbutton_tree_nodes_names_width->set_sensitive(false);
+    spinbutton_tree_nodes_names_width->set_tooltip_text(_("Disabled in Development Version"));
     spinbutton_tree_nodes_names_width->set_value(pConfig->cherryWrapWidth);
     hbox_tree_nodes_names_width->pack_start(*label_tree_nodes_names_width, false, false);
     hbox_tree_nodes_names_width->pack_start(*spinbutton_tree_nodes_names_width, false, false);
@@ -977,8 +981,8 @@ Gtk::Widget* CtPrefDlg::build_tab_fonts()
 {
     CtConfig* pConfig = _pCtMainWin->get_ct_config();
 
-    Gtk::Image* image_rt = _pCtMainWin->new_image_from_stock(Gtk::Stock::SELECT_FONT.id, Gtk::ICON_SIZE_MENU);
-    Gtk::Image* image_pt = _pCtMainWin->new_image_from_stock(Gtk::Stock::SELECT_FONT.id, Gtk::ICON_SIZE_MENU);
+    Gtk::Image* image_rt = _pCtMainWin->new_image_from_stock("ct_fonts", Gtk::ICON_SIZE_MENU);
+    Gtk::Image* image_pt = _pCtMainWin->new_image_from_stock("ct_fonts", Gtk::ICON_SIZE_MENU);
     Gtk::Image* image_code = _pCtMainWin->new_image_from_stock("ct_xml", Gtk::ICON_SIZE_MENU);
     Gtk::Image* image_tree = _pCtMainWin->new_image_from_stock("ct_cherries", Gtk::ICON_SIZE_MENU);
     Gtk::Label* label_rt = Gtk::manage(new Gtk::Label(_("Rich Text")));
@@ -1203,6 +1207,7 @@ Gtk::Widget* CtPrefDlg::build_tab_toolbar()
     treeview->set_headers_visible(false);
     treeview->set_reorderable(true);
     treeview->set_size_request(300, 300);
+    treeview->get_selection()->select(Gtk::TreePath("0"));
 
     Gtk::CellRendererPixbuf pixbuf_renderer;
     pixbuf_renderer.property_stock_size() = Gtk::BuiltinIconSize::ICON_SIZE_LARGE_TOOLBAR;
@@ -1237,19 +1242,21 @@ Gtk::Widget* CtPrefDlg::build_tab_toolbar()
     pMainBox->pack_start(*hbox);
 
     button_add->signal_clicked().connect([this, treeview, liststore](){
-        if (add_new_item_in_toolbar_model(treeview, liststore))
-            need_restart(RESTART_REASON::TOOLBAR);
+        if (add_new_item_in_toolbar_model(treeview, liststore)) {
+            update_config_toolbar_from_model(liststore);
+            apply_for_each_window([](CtMainWin* win) { win->menu_rebuild_toolbar(true); });
+        }
     });
     button_remove->signal_clicked().connect([this, treeview, liststore](){
         liststore->erase(treeview->get_selection()->get_selected());
         update_config_toolbar_from_model(liststore);
-        need_restart(RESTART_REASON::TOOLBAR);
+        apply_for_each_window([](CtMainWin* win) { win->menu_rebuild_toolbar(true); });
     });
     button_reset->signal_clicked().connect([this, pConfig, liststore](){
         if (CtDialogs::question_dialog(reset_warning, *this)) {
             pConfig->toolbarUiList = CtConst::TOOLBAR_VEC_DEFAULT;
             fill_toolbar_model(liststore);
-            need_restart(RESTART_REASON::TOOLBAR);
+            apply_for_each_window([](CtMainWin* win) { win->menu_rebuild_toolbar(true); });
         }
     });
     treeview->signal_key_press_event().connect([button_remove](GdkEventKey* key) -> bool {
@@ -1261,7 +1268,7 @@ Gtk::Widget* CtPrefDlg::build_tab_toolbar()
     });
     treeview->signal_drag_end().connect([this, liststore](const Glib::RefPtr<Gdk::DragContext>&){
         update_config_toolbar_from_model(liststore);
-        need_restart(RESTART_REASON::TOOLBAR);
+        apply_for_each_window([](CtMainWin* win) { win->menu_rebuild_toolbar(true); });
     });
 
     return pMainBox;
@@ -1413,6 +1420,9 @@ Gtk::Widget* CtPrefDlg::build_tab_misc()
     checkbutton_reload_doc_last->set_active(pConfig->reloadDocLast);
     checkbutton_mod_time_sentinel->set_active(pConfig->modTimeSentinel);
 
+    checkbutton_mod_time_sentinel->set_sensitive(false);
+    checkbutton_mod_time_sentinel->set_tooltip_text(_("Disabled in Development Version"));
+
     Gtk::Frame* frame_misc_misc = Gtk::manage(new Gtk::Frame(std::string("<b>")+_("Miscellaneous")+"</b>"));
     ((Gtk::Label*)frame_misc_misc->get_label_widget())->set_use_markup(true);
     frame_misc_misc->set_shadow_type(Gtk::SHADOW_NONE);
@@ -1448,11 +1458,30 @@ Gtk::Widget* CtPrefDlg::build_tab_misc()
     pMainBox->pack_start(*frame_language, false, false);
 #endif
 
+
+    // cannot just turn on systray icon, we have to check if systray exists
     checkbutton_systray->signal_toggled().connect([this, pConfig, checkbutton_systray, checkbutton_start_on_systray](){
-        pConfig->systrayOn = checkbutton_systray->get_active();
-        _pCtMainWin->get_status_icon()->set_visible(checkbutton_systray->get_active());
-        apply_for_each_window([](CtMainWin* win) { win->menu_set_visible_exit_app(win->get_ct_config()->systrayOn); });
-        checkbutton_start_on_systray->set_sensitive(checkbutton_systray->get_active());
+        if (checkbutton_systray->get_active()) {
+            _pCtMainWin->get_status_icon()->set_visible(true);
+            this->set_sensitive(false);
+            Glib::signal_timeout().connect_once([&](){ // can only check status icon in main event loop
+                this->set_sensitive(true);
+                if (_pCtMainWin->get_status_icon()->is_embedded()) {
+                    pConfig->systrayOn = true;
+                    apply_for_each_window([](CtMainWin* win) { win->menu_set_visible_exit_app(true); });
+                    checkbutton_start_on_systray->set_sensitive(true);
+                } else {
+                    _pCtMainWin->get_status_icon()->set_visible(false);
+                    checkbutton_systray->set_active(false);
+                    CtDialogs::warning_dialog(_("Your system does not appear to support system trays"), *_pCtMainWin);
+                }
+            }, 300);
+        } else {
+            pConfig->systrayOn = false;
+            _pCtMainWin->get_status_icon()->set_visible(false);
+            apply_for_each_window([](CtMainWin* win) { win->menu_set_visible_exit_app(false); });
+            checkbutton_start_on_systray->set_sensitive(false);
+        }
     });
     checkbutton_start_on_systray->signal_toggled().connect([pConfig, checkbutton_start_on_systray](){
         pConfig->startOnSystray = checkbutton_start_on_systray->get_active();
@@ -1466,11 +1495,15 @@ Gtk::Widget* CtPrefDlg::build_tab_misc()
         pConfig->autosaveVal = spinbutton_autosave->get_value_as_int();
         _pCtMainWin->file_autosave_restart();
     });
-    spinbutton_num_backups->signal_value_changed().connect([pConfig, spinbutton_num_backups](){
-        pConfig->backupNum = spinbutton_num_backups->get_value_as_int();
-    });
     checkbutton_autosave_on_quit->signal_toggled().connect([pConfig, checkbutton_autosave_on_quit](){
         pConfig->autosaveOnQuit = checkbutton_autosave_on_quit->get_active();
+    });
+    checkbutton_backup_before_saving->signal_toggled().connect([pConfig, checkbutton_backup_before_saving, spinbutton_num_backups](){
+        pConfig->backupCopy = checkbutton_backup_before_saving->get_active();
+        spinbutton_num_backups->set_sensitive(pConfig->backupCopy);
+    });
+    spinbutton_num_backups->signal_value_changed().connect([pConfig, spinbutton_num_backups](){
+        pConfig->backupNum = spinbutton_num_backups->get_value_as_int();
     });
     checkbutton_reload_doc_last->signal_toggled().connect([pConfig, checkbutton_reload_doc_last](){
         pConfig->reloadDocLast = checkbutton_reload_doc_last->get_active();
@@ -1496,7 +1529,7 @@ Gtk::Widget* CtPrefDlg::build_tab_misc()
     combobox_country_language->signal_changed().connect([this, combobox_country_language](){
         Glib::ustring new_lang = combobox_country_language->get_active_text();
         need_restart(RESTART_REASON::LANG, _("The New Language will be Available Only After Restarting CherryTree"));
-        g_file_set_contents(CtFileSystem::get_cherrytree_lang_filepath().c_str(),
+        g_file_set_contents(fs::get_cherrytree_lang_filepath().c_str(),
                             new_lang.c_str(), (gssize)new_lang.bytes(), nullptr);
     });
 #endif

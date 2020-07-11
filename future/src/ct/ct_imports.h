@@ -23,11 +23,14 @@
 
 #include "ct_const.h"
 #include "ct_parser.h"
+#include "ct_filesystem.h"
 
 #include <glibmm/ustring.h>
 #include <libxml2/libxml/HTMLparser.h>
 #include <libxml++/libxml++.h>
 #include <queue>
+#include <utility>
+#include <glibmm/i18n.h>
 
 namespace {
 using TableMatrx = std::queue<std::queue<std::string>>;
@@ -35,7 +38,7 @@ using TableMatrx = std::queue<std::queue<std::string>>;
 
 struct ct_imported_node
 {
-    std::string                      path;
+    fs::path                         path;
     Glib::ustring                    node_name;
     gint64                           node_id {-1};     // generated at the end
     std::string                      node_syntax {CtConst::RICH_TEXT_ID};
@@ -43,7 +46,7 @@ struct ct_imported_node
     std::map<Glib::ustring, std::vector<xmlpp::Element*>> content_broken_links;
     std::list<std::unique_ptr<ct_imported_node>> children;
 
-    ct_imported_node(const std::string& _path, const Glib::ustring& _name) : path(_path), node_name(_name) {}
+    ct_imported_node(fs::path _path, const Glib::ustring& _name) : path(std::move(_path)), node_name(_name) {}
     void add_broken_link(const Glib::ustring& link, xmlpp::Element* el) { content_broken_links[link].push_back(el); }
     bool has_content() { return xml_content.get_root_node(); }
 };
@@ -52,8 +55,8 @@ struct ct_imported_node
 class CtImporterInterface
 {
 public:
-    virtual std::unique_ptr<ct_imported_node> import_file(const std::string& file) = 0;
-    virtual std::vector<std::string>          file_mimes() { return {}; }
+    virtual std::unique_ptr<ct_imported_node> import_file(const fs::path& file) = 0;
+    virtual std::string                       file_pattern_name() { return ""; }
     virtual std::vector<std::string>          file_patterns() { return {}; }
 };
 
@@ -61,7 +64,7 @@ public:
 namespace CtImports {
 
     std::vector<std::pair<int, int>> get_web_links_offsets_from_plain_text(const Glib::ustring& plain_text);
-    std::unique_ptr<ct_imported_node> traverse_dir(const std::string& dir, CtImporterInterface* importer);
+    std::unique_ptr<ct_imported_node> traverse_dir(const fs::path& dir, CtImporterInterface* importer);
 
 }
 
@@ -129,7 +132,7 @@ public:
     void set_status_bar(CtStatusBar* status_bar);
 
     Glib::ustring to_string() { return _xml_doc->write_to_string(); }
-
+    const xmlpp::Document& doc() const { return *_xml_doc; }
 
 private:
     void _start_adding_tag_styles();
@@ -182,8 +185,9 @@ public:
     CtHtmlImport(CtConfig* config);
 
     // virtuals of CtImporterInterface
-    std::unique_ptr<ct_imported_node> import_file(const std::string& file) override;
-    std::vector<std::string>          file_mimes() override { return {"text/html"}; };
+    std::unique_ptr<ct_imported_node> import_file(const fs::path& file) override;
+    std::string                       file_pattern_name() override { return _("Html Document"); }
+    std::vector<std::string>          file_patterns() override { return {"*.html", "*.htm"}; };
 
 private:
     CtConfig* _config;
@@ -197,7 +201,7 @@ public:
 
 public:
     // virtuals of CtImporterInterface
-    std::unique_ptr<ct_imported_node> import_file(const std::string& file) override;
+    std::unique_ptr<ct_imported_node> import_file(const fs::path& file) override;
 
 private:
     void            _iterate_tomboy_note(xmlpp::Element* iter, std::unique_ptr<ct_imported_node>& node);
@@ -226,7 +230,7 @@ public:
 
 public:
     // virtuals of CtImporterInterface
-    std::unique_ptr<ct_imported_node> import_file(const std::string& file) override;
+    std::unique_ptr<ct_imported_node> import_file(const fs::path& file) override;
 
 protected:
     // virtuals of CtTextParser
@@ -235,7 +239,7 @@ protected:
 
 private:
     void _parse_body_line(const std::string& line);
-    void _ensure_notebook_file_in_dir(const std::string& dir);
+    void _ensure_notebook_file_in_dir(const fs::path& dir);
 
 private:
     bool              _has_notebook_file {false};
@@ -251,8 +255,9 @@ public:
 
 public:
     // virtuals of CtImporterInterface
-    std::unique_ptr<ct_imported_node> import_file(const std::string& file) override;
-    std::vector<std::string>          file_mimes() override { return {"text/plain"}; };
+    std::unique_ptr<ct_imported_node> import_file(const fs::path& file) override;
+    std::string                       file_pattern_name() override { return _("Plain Text Document"); }
+    std::vector<std::string>          file_patterns() override { return {"*.txt"}; };
 };
 
 
@@ -296,10 +301,9 @@ public:
 
 public:
     // virtuals of CtImporterInterface
-    std::unique_ptr<ct_imported_node> import_file(const std::string& file) override;
-    std::vector<std::string>          file_mimes() override { return {"text/plain"}; };
+    std::unique_ptr<ct_imported_node> import_file(const fs::path& file) override;
     std::vector<std::string>          file_patterns() override { return {"*.md"}; };
-
+    std::string                       file_pattern_name() override { return _("Markdown Document"); }
 private:
     CtMDParser _parser;
 };
@@ -312,8 +316,19 @@ public:
 
 public:
     // virtuals of CtImporterInterface
-    std::unique_ptr<ct_imported_node> import_file(const std::string& file) override;
+    std::unique_ptr<ct_imported_node> import_file(const fs::path& file) override;
 
 private:
     CtConfig* _config;
 };
+
+
+class CtKeepnoteImport: public CtImporterInterface {
+public:
+    explicit CtKeepnoteImport(CtConfig* config) : _config(config) {}
+    std::unique_ptr<ct_imported_node> import_file(const fs::path& file) override;
+
+private:
+    CtConfig* _config;
+};
+

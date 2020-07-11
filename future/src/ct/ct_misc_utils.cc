@@ -21,17 +21,16 @@
  * MA 02110-1301, USA.
  */
 
+#include "ct_misc_utils.h"
 #include <pangomm.h>
 #include <iostream>
-#include <string.h>
-#include "ct_misc_utils.h"
+#include <cstring>
 #include "ct_const.h"
 #include "ct_main_win.h"
 #include "ct_logging.h"
 #include <ctime>
 #include <regex>
 #include <glib/gstdio.h> // to get stats
-#include <fstream>
 #include <curl/curl.h>
 #include <spdlog/fmt/bundled/printf.h>
 
@@ -39,36 +38,34 @@
 #include <future> // parallel_for
 
 #ifdef _WIN32
-    #include <windows.h>
-    #include <shellapi.h>
-#endif
-
-
-namespace fs = CtFileSystem;
+#include <windows.h>
+#include <shellapi.h>
+#endif // _WIN32
 
 namespace CtCSV {
+
 CtStringTable table_from_csv(std::istream& input)
 {
-    // Disable exceptions 
+    // Disable exceptions
     auto except_bit_before = input.exceptions();
     input.exceptions(std::ios::goodbit);
 
     CtStringTable tbl_matrix;
     std::string line;
-    
+
     std::array<char, 256> chunk_buff{};
     input.read(chunk_buff.data(), chunk_buff.size());
     std::streamsize pos;
     std::vector<std::string> tbl_row;
-    std::ostringstream cell_buff;  
+    std::ostringstream cell_buff;
     constexpr char cell_tag = '"';
     constexpr char cell_sep = ',';
     constexpr char esc = '\\';
     bool in_string = false;
     bool escape_next = false;
-    while (input || (pos = input.gcount()) != 0) {    
+    while (input || (pos = input.gcount()) != 0) {
         for (auto ch : chunk_buff) {
-            
+
             if (ch == '\0') break;
             if (escape_next) {
                 escape_next = false;
@@ -86,7 +83,7 @@ CtStringTable table_from_csv(std::istream& input)
                 tbl_row.emplace_back(cell_buff.str());
                 std::ostringstream tmp_buff;
                 cell_buff.swap(tmp_buff);
-                
+
                 if (is_newline) {
                     tbl_matrix.emplace_back(tbl_row);
                     tbl_row.clear();
@@ -97,7 +94,7 @@ CtStringTable table_from_csv(std::istream& input)
                 in_string = !in_string;
             } else {
                 cell_buff << ch;
-            } 
+            }
         }
 
         if (pos != 0) input.read(chunk_buff.data(), chunk_buff.size());
@@ -130,84 +127,52 @@ void table_to_csv(const CtStringTable& table, std::ostream& output) {
     }
 }
 
-}
+} // namespace CtCSV
 
 std::string CtMiscUtil::get_ct_language()
 {
     std::string retLang{CtConst::LANG_DEFAULT};
-    if (Glib::file_test(CtFileSystem::get_cherrytree_lang_filepath(), Glib::FILE_TEST_IS_REGULAR))
+    if (fs::is_regular_file(fs::get_cherrytree_lang_filepath()))
     {
-        const std::string langTxt = str::trim(Glib::file_get_contents(CtFileSystem::get_cherrytree_lang_filepath()));
+        const std::string langTxt = str::trim(Glib::file_get_contents(fs::get_cherrytree_lang_filepath().string()));
         if (vec::exists(CtConst::AVAILABLE_LANGS, langTxt))
         {
             retLang = langTxt;
         }
         else
         {
-            g_critical("Unexpected %s file content %s", CtFileSystem::get_cherrytree_lang_filepath().c_str(), langTxt.c_str());
+            g_critical("Unexpected %s file content %s", fs::get_cherrytree_lang_filepath().c_str(), langTxt.c_str());
         }
     }
     return retLang;
 }
 
-CtDocType CtMiscUtil::get_doc_type(const std::string& fileName)
+std::string CtMiscUtil::get_doc_extension(const CtDocType ctDocType, const CtDocEncrypt ctDocEncrypt)
 {
-    CtDocType retDocType{CtDocType::None};
-    if ( (Glib::str_has_suffix(fileName, CtConst::CTDOC_XML_NOENC)) or
-         (Glib::str_has_suffix(fileName, CtConst::CTDOC_XML_ENC)) )
-    {
-        retDocType = CtDocType::XML;
-    }
-    else if ( (Glib::str_has_suffix(fileName, CtConst::CTDOC_SQLITE_NOENC)) or
-              (Glib::str_has_suffix(fileName, CtConst::CTDOC_SQLITE_ENC)) )
-    {
-        retDocType = CtDocType::SQLite;
-    }
-    return retDocType;
-}
-
-CtDocEncrypt CtMiscUtil::get_doc_encrypt(const std::string& fileName)
-{
-    CtDocEncrypt retDocEncrypt{CtDocEncrypt::None};
-    if ( (Glib::str_has_suffix(fileName, CtConst::CTDOC_XML_NOENC)) or
-         (Glib::str_has_suffix(fileName, CtConst::CTDOC_SQLITE_NOENC)) )
-    {
-        retDocEncrypt = CtDocEncrypt::False;
-    }
-    else if ( (Glib::str_has_suffix(fileName, CtConst::CTDOC_XML_ENC)) or
-              (Glib::str_has_suffix(fileName, CtConst::CTDOC_SQLITE_ENC)) )
-    {
-        retDocEncrypt = CtDocEncrypt::True;
-    }
-    return retDocEncrypt;
-}
-
-const gchar* CtMiscUtil::get_doc_extension(const CtDocType ctDocType, const CtDocEncrypt ctDocEncrypt)
-{
-    const gchar* retVal{""};
+    std::string ret_val;
     if (CtDocType::XML == ctDocType)
     {
         if (CtDocEncrypt::False == ctDocEncrypt)
         {
-            retVal = CtConst::CTDOC_XML_NOENC;
+            ret_val = CtConst::CTDOC_XML_NOENC;
         }
         else if (CtDocEncrypt::True == ctDocEncrypt)
         {
-            retVal = CtConst::CTDOC_XML_ENC;
+            ret_val = CtConst::CTDOC_XML_ENC;
         }
     }
     else if (CtDocType::SQLite == ctDocType)
     {
         if (CtDocEncrypt::False == ctDocEncrypt)
         {
-            retVal = CtConst::CTDOC_SQLITE_NOENC;
+            ret_val = CtConst::CTDOC_SQLITE_NOENC;
         }
         else if (CtDocEncrypt::True == ctDocEncrypt)
         {
-            retVal = CtConst::CTDOC_SQLITE_ENC;
+            ret_val = CtConst::CTDOC_SQLITE_ENC;
         }
     }
-    return retVal;
+    return ret_val;
 }
 
 void CtMiscUtil::filepath_extension_fix(const CtDocType ctDocType, const CtDocEncrypt ctDocEncrypt, std::string& filepath)
@@ -310,7 +275,7 @@ Gtk::BuiltinIconSize CtMiscUtil::getIconSize(int size)
 bool CtMiscUtil::mime_type_contains(const std::string &filepath, const std::string& type)
 {
     using gchar_ptr = std::unique_ptr<gchar, decltype(&g_free)>;
-    
+
     // Note that these return gchar* which must be freed with g_free()
     gchar_ptr type_guess(g_content_type_guess(filepath.c_str(), nullptr, 0, nullptr), g_free);
     gchar_ptr p_mime_type(g_content_type_get_mime_type(type_guess.get()), g_free);
@@ -320,6 +285,7 @@ bool CtMiscUtil::mime_type_contains(const std::string &filepath, const std::stri
 }
 
 namespace CtMiscUtil {
+
 URI_TYPE get_uri_type(const std::string &uri) {
     constexpr std::array<std::string_view, 2> http_ids = {"https://", "http://"};
     constexpr std::array<std::string_view, 2> fs_ids = {"/", "C:\\\\"};
@@ -327,7 +293,8 @@ URI_TYPE get_uri_type(const std::string &uri) {
     else if (str::startswith_any(uri, fs_ids) || Glib::file_test(uri, Glib::FILE_TEST_EXISTS)) return URI_TYPE::LOCAL_FILEPATH;
     else return URI_TYPE::UNKNOWN;
 }
-}
+
+} // namespace CtMiscUtil
 
 // analog to tbb::parallel_for
 void CtMiscUtil::parallel_for(size_t first, size_t last, std::function<void(size_t)> f)
@@ -365,7 +332,6 @@ void CtMiscUtil::parallel_for(size_t first, size_t last, std::function<void(size
     for (auto& task: td_tasks)
         task.join();
 }
-
 
 // Returns True if the characters compose a camel case word
 bool CtTextIterUtil::get_is_camel_case(Gtk::TextIter iter_start, int num_chars)
@@ -478,8 +444,8 @@ bool CtTextIterUtil::tag_richtext_toggling_on_or_off(const Gtk::TextIter& text_i
 
 void CtTextIterUtil::generic_process_slot(int start_offset,
                                           int end_offset,
-                                          Glib::RefPtr<Gtk::TextBuffer>& text_buffer,
-                                          std::function<void(Gtk::TextIter&/*start_iter*/, Gtk::TextIter&/*curr_iter*/, std::map<std::string_view, std::string>&/*curr_attributes*/)> serialize_func)
+                                          const Glib::RefPtr<Gtk::TextBuffer>& rTextBuffer,
+                                          SerializeFunc serialize_func)
 {
 /*    if (end_offset == -1)
         end_offset = text_buffer->end().get_offset();
@@ -527,13 +493,13 @@ void CtTextIterUtil::generic_process_slot(int start_offset,
     // todo: make the upper code less ugly
     // if there is an issue, then try the upper code
 
-    std::map<std::string_view, std::string> curr_attributes;
-    for (auto tag_property: CtConst::TAG_PROPERTIES)
+    CurrAttributesMap curr_attributes;
+    for (const std::string_view tag_property : CtConst::TAG_PROPERTIES) {
         curr_attributes[tag_property] = "";
-
-    Gtk::TextIter curr_start_iter = text_buffer->get_iter_at_offset(start_offset);
+    }
+    Gtk::TextIter curr_start_iter = rTextBuffer->get_iter_at_offset(start_offset);
     Gtk::TextIter curr_end_iter = curr_start_iter;
-    Gtk::TextIter real_end_iter = end_offset == -1 ? text_buffer->end() : text_buffer->get_iter_at_offset(end_offset);
+    Gtk::TextIter real_end_iter = end_offset == -1 ? rTextBuffer->end() : rTextBuffer->get_iter_at_offset(end_offset);
 
     CtTextIterUtil::rich_text_attributes_update(curr_end_iter, curr_attributes);
     while (curr_end_iter.forward_to_tag_toggle(Glib::RefPtr<Gtk::TextTag>{nullptr}))
@@ -551,16 +517,12 @@ void CtTextIterUtil::generic_process_slot(int start_offset,
     {
         serialize_func(curr_start_iter, real_end_iter, curr_attributes);
     }
-
 }
 
 const gchar* CtTextIterUtil::get_text_iter_alignment(const Gtk::TextIter& textIter, CtMainWin* pCtMainWin)
 {
     const char* retVal{CtConst::TAG_PROP_VAL_LEFT};
-    for (const char* currAlignType : std::list{CtConst::TAG_PROP_VAL_LEFT,
-                                               CtConst::TAG_PROP_VAL_CENTER,
-                                               CtConst::TAG_PROP_VAL_FILL,
-                                               CtConst::TAG_PROP_VAL_RIGHT})
+    for (const gchar* currAlignType : CtConst::TAG_ALIGNMENTS)
     {
         const std::string tagName = pCtMainWin->get_text_tag_name_exist_or_create(CtConst::TAG_JUSTIFICATION, currAlignType);
         if (textIter.has_tag(pCtMainWin->get_text_tag_table()->lookup(tagName)))
@@ -641,6 +603,17 @@ std::vector<gint64> CtStrUtil::gstring_split_to_int64(const gchar* inStr, const 
     }
     g_strfreev(arrayOfStrings);
     return retVec;
+}
+
+// returned pointer must be freed with g_strfreev()
+gchar** CtStrUtil::vector_to_array(const std::vector<std::string>& inVec)
+{
+    gchar** array = g_new(gchar*, inVec.size()+1);
+    for (size_t i = 0; i < inVec.size(); ++i) {
+        array[i] = g_strdup(inVec[i].c_str());
+    }
+    array[inVec.size()] = nullptr;
+    return array;
 }
 
 int CtStrUtil::natural_compare(const Glib::ustring& left, const Glib::ustring& right)
@@ -744,6 +717,25 @@ std::string CtStrUtil::get_internal_link_from_http_url(std::string link_url)
     else                                            return "webs http://" + link_url;
 }
 
+std::string CtStrUtil::external_uri_from_internal(std::string internal_uri) {
+    constexpr std::array<std::string_view, 2> internal_ids = {"webs ", "file "};
+    auto internal_id_iter = std::find_if(internal_ids.cbegin(), internal_ids.cend(), [internal_uri](std::string_view comp){
+        return str::startswith(internal_uri, std::string(comp.begin(), comp.end()));
+    });
+    if (internal_id_iter != internal_ids.cend()) {
+        // Valid
+        internal_uri.erase(internal_uri.cbegin(), internal_uri.cbegin() + internal_id_iter->size());
+        if (*internal_id_iter == "file ") {
+            // Decode a file url
+            internal_uri = Glib::Base64::decode(internal_uri);
+        }
+    } else {
+        throw std::logic_error(fmt::format("CtStrUtil::get_external_uri_from_internal passed string ({}) which does not contain an internal uri", internal_uri));
+    }
+    return internal_uri;
+
+}
+
 std::string CtFontUtil::get_font_family(const std::string& fontStr)
 {
     return Pango::FontDescription(fontStr).get_family();
@@ -800,6 +792,7 @@ char* CtRgbUtil::set_rgb24str_from_str_any(const char* rgbStrAny, char* rgb24Str
     }
     return rgb24StrOut;
 }
+
 
 Glib::ustring CtRgbUtil::rgb_to_no_white(Glib::ustring in_rgb)
 {
@@ -915,6 +908,13 @@ std::string str::xml_escape(const std::string& text)
     return buffer;
 }
 
+Glib::ustring str::sanitize_bad_symbols(const Glib::ustring& xml_content)
+{
+    // remove everything forbidden by XML 1.0 specifications
+    Glib::RefPtr<Glib::Regex> re_pattern = Glib::Regex::create("[^\x09\x0A\x0D\x20-\xFF\x85\xA0-\uD7FF\uE000-\uFDCF\uFDE0-\uFFFD]");
+    return re_pattern->replace(xml_content, 0, "", static_cast<Glib::RegexMatchFlags>(0));
+}
+
 std::string str::re_escape(const std::string& text)
 {
     return Glib::Regex::escape_string(text);
@@ -969,215 +969,6 @@ Glib::ustring str::repeat(const Glib::ustring& input, int num)
     return ret;
 }
 
-std::string CtFileSystem::get_proper_platform_filepath(std::string filepath)
-{
-#ifdef _WIN32
-    filepath = str::replace(filepath, CtConst::CHAR_SLASH, CtConst::CHAR_BSLASH);
-#else
-    filepath = str::replace(filepath, CtConst::CHAR_BSLASH, CtConst::CHAR_SLASH);
-#endif
-    return filepath;
-}
 
-bool CtFileSystem::copy_file(const std::string& from_file, const std::string& to_file)
-{
-    Glib::RefPtr<Gio::File> rFileFrom = Gio::File::create_for_path(from_file);
-    Glib::RefPtr<Gio::File> rFileTo = Gio::File::create_for_path(to_file);
-    return rFileFrom->copy(rFileTo, Gio::FILE_COPY_OVERWRITE);
-}
 
-bool CtFileSystem::is_directory(const fs::path& path) {
-    return Glib::file_test(path.string(), Glib::FILE_TEST_IS_DIR);
-}
 
-bool CtFileSystem::move_file(const std::string& from_file, const std::string& to_file)
-{
-    Glib::RefPtr<Gio::File> rFileFrom = Gio::File::create_for_path(from_file);
-    Glib::RefPtr<Gio::File> rFileTo = Gio::File::create_for_path(to_file);
-    return rFileFrom->move(rFileTo, Gio::FILE_COPY_OVERWRITE);
-}
-
-fs::path CtFileSystem::abspath(const fs::path& path)
-{
-    Glib::RefPtr<Gio::File> rFile = Gio::File::create_for_path(path.string());
-    return rFile->get_path();
-}
-
-time_t CtFileSystem::getmtime(const std::string& path)
-{
-    time_t time = 0;
-    GStatBuf st;
-    if (g_stat(path.c_str(), &st) == 0)
-        time = st.st_mtime;
-    return time;
-}
-
-int CtFileSystem::getsize(const std::string& path)
-{
-    GStatBuf st;
-    if (g_stat(path.c_str(), &st) == 0)
-        return st.st_size;
-    return 0;
-}
-
-std::list<std::string> CtFileSystem::get_dir_entries(const std::string& dir)
-{
-    Glib::Dir gdir(dir);
-    std::list<std::string> entries(gdir.begin(), gdir.end());
-    for (auto& entry: entries)
-        entry = Glib::build_filename(dir, entry);
-    return entries;
-}
-
-std::string CtFileSystem::get_file_stem(const std::string& path)
-{
-    if (path == "") return "";
-    std::string name = Glib::path_get_basename(path);
-    size_t dot_pos = name.find_last_of(".");
-    if (dot_pos == std::string::npos || dot_pos == 0)
-        return name;
-    return name.substr(0, dot_pos);
-}
-
-bool CtFileSystem::exists(const CtFileSystem::path& filepath) {
-    return Glib::file_test(filepath.string(), Glib::FILE_TEST_EXISTS);
-}
-
-// Open Filepath with External App
-void CtFileSystem::external_filepath_open(const fs::path& filepath, bool open_folder_if_file_not_exists, CtConfig* config)
-{
-    spdlog::debug("filepath to open: {}", filepath);
-    if (config->filelinkCustomOn) {
-        std::string cmd = fmt::sprintf(config->filelinkCustomAct, filepath.string());
-        std::system(cmd.c_str());
-    } else {
-        if (open_folder_if_file_not_exists && !fs::exists(filepath)) {
-            external_folderpath_open(filepath, config);
-        } else if (!fs::exists(filepath)) {
-            throw std::runtime_error(fmt::format("Filepath: {} does not exist and open_folder_if_not_exists is false", filepath.string()));
-        } else {
-#ifdef _WIN32
-            ShellExecute(GetActiveWindow(), "open", filepath.c_str(), NULL, NULL, SW_SHOWNORMAL);
-#else
-            fs::path f_path("file://");
-            f_path += filepath;
-            g_app_info_launch_default_for_uri(f_path.c_str(), nullptr, nullptr);
-#endif
-        }
-    }
-}
-
-// Open Folderpath with External App
-void CtFileSystem::external_folderpath_open(const fs::path& folderpath, CtConfig* config)
-{
-    spdlog::debug("dir to open: {}", folderpath.string());
-    if (config->folderlinkCustomOn) {
-        std::string cmd = fmt::sprintf(config->filelinkCustomAct, folderpath.string());
-        std::system(cmd.c_str());
-    } else {
-    
-        // https://stackoverflow.com/questions/42442189/how-to-open-spawn-a-file-with-glib-gtkmm-in-windows
-#ifdef _WIN32
-        ShellExecute(NULL, "open", folderpath.c_str(), NULL, NULL, SW_SHOWDEFAULT);
-#elif defined(__APPLE__)
-        std::vector<std::string> argv = { "open", folderpath.string() };
-    Glib::spawn_async("", argv, Glib::SpawnFlags::SPAWN_SEARCH_PATH);
-#else
-        fs::path path("file://");
-        path += folderpath;
-        g_app_info_launch_default_for_uri(folderpath.c_str(), nullptr, nullptr);
-#endif
-    }
-}
-
-std::string CtFileSystem::prepare_export_folder(const std::string& dir_place, std::string new_folder, bool overwrite_existing)
-{
-    if (Glib::file_test(Glib::build_filename(dir_place, new_folder), Glib::FILE_TEST_IS_DIR))
-    {
-        // todo:
-        if (overwrite_existing) {
-            std::cout << "removing dir: " << Glib::build_filename(dir_place, new_folder) << std::endl;
-            rmdir(Glib::build_filename(dir_place, new_folder));
-        }
-        else {
-            int n = 2;
-            while (Glib::file_test(Glib::build_filename(dir_place, new_folder + str::format("{:03d}", n)), Glib::FILE_TEST_IS_DIR))
-                n += 1;
-            new_folder += str::format("{:03d}", n);
-        }
-    }
-    return new_folder;
-}
-
-extern bool cherrytree_remove_dir_with_subs(const char* path);
-bool CtFileSystem::rmdir(const std::string& dir)
-{
-    return cherrytree_remove_dir_with_subs(dir.c_str());
-}
-
-std::string CtFileSystem::get_cherrytree_datadir()
-{
-    if (Glib::file_test(_CMAKE_BINARY_DIR, Glib::FILE_TEST_IS_DIR)) {
-        // we're running from the build sources
-        return _CMAKE_SOURCE_DIR;
-    }
-    return CHERRYTREE_DATADIR;
-}
-
-std::string CtFileSystem::get_cherrytree_localedir()
-{
-    const std::string sources_po_dir = Glib::canonicalize_filename(Glib::build_filename(_CMAKE_SOURCE_DIR, "po"));
-    if (Glib::file_test(sources_po_dir, Glib::FILE_TEST_IS_DIR)) {
-        // we're running from the build sources
-        return sources_po_dir;
-    }
-    return CHERRYTREE_LOCALEDIR;
-}
-
-std::string CtFileSystem::get_cherrytree_configdir()
-{
-    //TODO: define rule for local config.cfg/lang files at least for Windows portable
-    return Glib::build_filename(Glib::get_user_config_dir(), CtConst::APP_NAME);
-}
-
-std::string CtFileSystem::get_cherrytree_lang_filepath()
-{
-    return Glib::build_filename(get_cherrytree_configdir(), "lang");
-}
-
-std::string CtFileSystem::download_file(const std::string& filepath)
-{
-    struct local {
-        static size_t write_memory_callback(void *contents, size_t size, size_t nmemb, void *userp)
-        {
-            const size_t realsize = size*nmemb;
-            static_cast<std::string*>(userp)->append((char*)contents, realsize);
-            return realsize;
-        }
-    };
-
-    spdlog::debug("start downloading {}", filepath);
-
-    std::string buffer;
-    buffer.reserve(3 * 1024 * 1024); // preallocate 3mb
-
-    // from https://curl.haxx.se/libcurl/c/getinmemory.html
-    curl_global_init(CURL_GLOBAL_ALL);
-    CURL* pCurlHandle = curl_easy_init();
-
-    curl_easy_setopt(pCurlHandle, CURLOPT_URL, filepath.c_str());
-    curl_easy_setopt(pCurlHandle, CURLOPT_WRITEFUNCTION, local::write_memory_callback);
-    curl_easy_setopt(pCurlHandle, CURLOPT_WRITEDATA, (void*)&buffer);
-    curl_easy_setopt(pCurlHandle, CURLOPT_TIMEOUT, 3);
-    curl_easy_setopt(pCurlHandle, CURLOPT_USERAGENT, "libcurl-agent/1.0");
-    const CURLcode res = curl_easy_perform(pCurlHandle);
-    curl_easy_cleanup(pCurlHandle);
-    curl_global_cleanup();
-
-    if (res != CURLE_OK) {
-        spdlog::error("curl_easy_perform() failed: {}", curl_easy_strerror(res));
-        return "";
-    }
-
-    return buffer;
-}

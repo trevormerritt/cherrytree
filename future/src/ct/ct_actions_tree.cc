@@ -22,11 +22,12 @@
  */
 
 #include "ct_actions.h"
-#include <gtkmm/dialog.h>
-#include <gtkmm/stock.h>
 #include "ct_image.h"
 #include "ct_dialogs.h"
+#include "ct_clipboard.h"
 #include <ctime>
+#include <gtkmm/dialog.h>
+#include <gtkmm/stock.h>
 
 bool CtActions::_is_there_selected_node_or_error()
 {
@@ -679,33 +680,12 @@ void CtActions::tree_info()
 {
     if (not _is_tree_not_empty_or_error()) return;
     CtSummaryInfo summaryInfo{};
-    auto& ctTreestore = _pCtMainWin->get_tree_store();
-    _pCtMainWin->get_tree_view().get_model()->foreach(
-        [&](const Gtk::TreePath& /*treePath*/, const Gtk::TreeIter& treeIter)->bool
-        {
-            auto ctTreeIter = ctTreestore.to_ct_tree_iter(treeIter);
-            const auto nodeSyntax = ctTreeIter.get_node_syntax_highlighting();
-            if (nodeSyntax == CtConst::RICH_TEXT_ID) {
-                ++summaryInfo.nodes_rich_text_num;
-            }
-            else if (nodeSyntax == CtConst::PLAIN_TEXT_ID) {
-                ++summaryInfo.nodes_plain_text_num;
-            }
-            else {
-                ++summaryInfo.nodes_code_num;
-            }
-            (void)ctTreeIter.get_node_text_buffer(); // ensure the node content is populated
-            for (CtAnchoredWidget* pAnchoredWidget : ctTreeIter.get_embedded_pixbufs_tables_codeboxes_fast()) {
-                switch (pAnchoredWidget->get_type()) {
-                    case CtAnchWidgType::CodeBox: ++summaryInfo.codeboxes_num; break;
-                    case CtAnchWidgType::ImageAnchor: ++summaryInfo.anchors_num; break;
-                    case CtAnchWidgType::ImageEmbFile: ++summaryInfo.embfile_num; break;
-                    case CtAnchWidgType::ImagePng: ++summaryInfo.images_num; break;
-                    case CtAnchWidgType::Table: ++summaryInfo.tables_num; break;
-                }
-            }
-            return false; /* false for continue */
-        }
-    );
+    _pCtMainWin->get_tree_store().populateSummaryInfo(summaryInfo);
     CtDialogs::summary_info_dialog(_pCtMainWin, summaryInfo);
+}
+
+void CtActions::node_link_to_clipboard()
+{
+    if (!_is_there_selected_node_or_error()) return;
+    CtClipboard(_pCtMainWin).node_link_to_clipboard(_pCtMainWin->curr_tree_iter());
 }

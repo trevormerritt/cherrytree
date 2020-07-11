@@ -90,6 +90,13 @@ Gtk::TreeIter CtDialogs::choose_item_dialog(Gtk::Window& parent,
     pScrolledwindow->set_policy(Gtk::POLICY_AUTOMATIC, Gtk::POLICY_AUTOMATIC);
     Gtk::TreeView* pElementsTreeview = Gtk::manage(new Gtk::TreeView(rModel));
     pElementsTreeview->set_headers_visible(false);
+    pElementsTreeview->get_selection()->select(Gtk::TreePath("0"));
+    pElementsTreeview->signal_row_activated().connect([&](const Gtk::TreeModel::Path&, Gtk::TreeViewColumn* ) {
+        if (Gtk::TreeIter iter = pElementsTreeview->get_selection()->get_selected()) {
+            static_cast<Gtk::Button*>(dialog.get_widget_for_response(Gtk::RESPONSE_ACCEPT))->clicked();
+        }
+    });
+
     Gtk::CellRendererPixbuf pixbuf_renderer;
     if (nullptr == single_column_name)
     {
@@ -637,7 +644,7 @@ void CtDialogs::match_dialog(const Glib::ustring& title,
     }
     CtMenuAction* pAction = ctMainWin.get_ct_menu().find_action("toggle_show_allmatches_dlg");
     Gtk::Button* pButtonHide = pAllMatchesDialog->add_button(str::format(_("Hide (Restore with '%s')"), CtStrUtil::get_accelerator_label(pAction->get_shortcut(ctMainWin.get_ct_config()))), Gtk::RESPONSE_CLOSE);
-    pButtonHide->set_image_from_icon_name(Gtk::Stock::CLOSE.id, Gtk::ICON_SIZE_BUTTON);
+    pButtonHide->set_image_from_icon_name("ct_close", Gtk::ICON_SIZE_BUTTON);
     Gtk::TreeView* pTreeview = Gtk::manage(new Gtk::TreeView(rModel));
     pTreeview->append_column(_("Node Name"), rModel->columns.node_name);
     pTreeview->append_column(_("Line"), rModel->columns.line_num);
@@ -765,7 +772,7 @@ bool CtDialogs::link_handle_dialog(CtMainWin& ctMainWin,
 
     Gtk::HBox hbox_file;
     Gtk::Image image_file;
-    image_file.set_from_icon_name(Gtk::Stock::FILE.id, Gtk::ICON_SIZE_BUTTON);
+    image_file.set_from_icon_name("ct_file", Gtk::ICON_SIZE_BUTTON);
     Gtk::RadioButton radiobutton_file(_("To File"));
     radiobutton_file.join_group(radiobutton_webs);
     Gtk::Entry entry_file;
@@ -938,7 +945,7 @@ bool CtDialogs::link_handle_dialog(CtMainWin& ctMainWin,
         if (ctMainWin.get_ct_config()->linksRelative)
         {
             Glib::RefPtr<Gio::File> rFile = Gio::File::create_for_path(filepath);
-            Glib::RefPtr<Gio::File> rDir = Gio::File::create_for_path(ctMainWin.get_ct_storage()->get_file_dir());
+            Glib::RefPtr<Gio::File> rDir = Gio::File::create_for_path(ctMainWin.get_ct_storage()->get_file_dir().string());
             filepath = rFile->get_relative_path(rDir);
         }
         entry_file.set_text(filepath);
@@ -954,7 +961,7 @@ bool CtDialogs::link_handle_dialog(CtMainWin& ctMainWin,
         if (ctMainWin.get_ct_config()->linksRelative)
         {
             Glib::RefPtr<Gio::File> rFile = Gio::File::create_for_path(filepath);
-            Glib::RefPtr<Gio::File> rDir = Gio::File::create_for_path(ctMainWin.get_ct_storage()->get_file_dir());
+            Glib::RefPtr<Gio::File> rDir = Gio::File::create_for_path(ctMainWin.get_ct_storage()->get_file_dir().string());
             filepath = rFile->get_relative_path(rDir);
         }
         entry_folder.set_text(filepath);
@@ -1066,106 +1073,14 @@ bool CtDialogs::link_handle_dialog(CtMainWin& ctMainWin,
 // The Select file dialog, Returns the retrieved filepath or None
 std::string CtDialogs::file_select_dialog(const file_select_args& args)
 {
-    Gtk::FileChooserDialog chooser(_("Select File"),
-                                   Gtk::FILE_CHOOSER_ACTION_OPEN);
-    chooser.add_button(Gtk::Stock::CANCEL, Gtk::RESPONSE_CANCEL);
-    chooser.add_button(Gtk::Stock::OPEN, Gtk::RESPONSE_ACCEPT);
-    if (args.pParentWin)
+    auto chooser = Gtk::FileChooserNative::create(_("Select File"), *args.pParentWin, Gtk::FILE_CHOOSER_ACTION_OPEN);
+    if (args.curr_folder.empty() || !fs::is_directory(args.curr_folder))
     {
-        chooser.set_transient_for(*args.pParentWin);
-        chooser.property_modal() = true;
-        chooser.property_destroy_with_parent() = true;
-        chooser.set_position(Gtk::WIN_POS_CENTER_ON_PARENT);
+        chooser->set_current_folder(g_get_home_dir());
     }
     else
     {
-        chooser.set_position(Gtk::WIN_POS_CENTER);
-    }
-    if (args.curr_folder.empty() || !Glib::file_test(args.curr_folder, Glib::FILE_TEST_IS_DIR))
-    {
-        chooser.set_current_folder(g_get_home_dir());
-    }
-    else
-    {
-        chooser.set_current_folder(args.curr_folder);
-    }
-    if (args.filter_pattern.size() || args.filter_mime.size())
-    {
-        Glib::RefPtr<Gtk::FileFilter> rFileFilter = Gtk::FileFilter::create();
-        rFileFilter->set_name(args.filter_name);
-        for (const std::string& element : args.filter_pattern)
-        {
-            rFileFilter->add_pattern(element);
-        }
-        for (const std::string& element : args.filter_mime)
-        {
-            rFileFilter->add_mime_type(element);
-        }
-        chooser.add_filter(rFileFilter);
-    }
-    return (chooser.run() == Gtk::RESPONSE_ACCEPT ? chooser.get_filename() : "");
-}
-
-// The Select folder dialog, returns the retrieved folderpath or None
-std::string CtDialogs::folder_select_dialog(const std::string& curr_folder,
-                                            Gtk::Window* pParentWin /*= nullptr*/)
-{
-    Gtk::FileChooserDialog chooser(_("Select Folder"),
-                                   Gtk::FILE_CHOOSER_ACTION_SELECT_FOLDER);
-    chooser.add_button(Gtk::Stock::CANCEL, Gtk::RESPONSE_CANCEL);
-    chooser.add_button(Gtk::Stock::OPEN, Gtk::RESPONSE_ACCEPT);
-    if (pParentWin)
-    {
-        chooser.set_transient_for(*pParentWin);
-        chooser.property_modal() = true;
-        chooser.property_destroy_with_parent() = true;
-        chooser.set_position(Gtk::WIN_POS_CENTER_ON_PARENT);
-    }
-    else
-    {
-        chooser.set_position(Gtk::WIN_POS_CENTER);
-    }
-    if (curr_folder.empty() || !Glib::file_test(curr_folder, Glib::FILE_TEST_IS_DIR))
-    {
-        chooser.set_current_folder(g_get_home_dir());
-    }
-    else
-    {
-        chooser.set_current_folder(curr_folder);
-    }
-    return (chooser.run() == Gtk::RESPONSE_ACCEPT ? chooser.get_filename() : "");
-}
-
-// The Save file as dialog, Returns the retrieved filepath or None
-std::string CtDialogs::file_save_as_dialog(const file_select_args& args)
-{
-    Gtk::FileChooserDialog chooser(_("Save File as"),
-                                   Gtk::FILE_CHOOSER_ACTION_SAVE);
-    chooser.add_button(Gtk::Stock::CANCEL, Gtk::RESPONSE_CANCEL);
-    chooser.add_button(Gtk::Stock::SAVE, Gtk::RESPONSE_ACCEPT);
-    chooser.set_do_overwrite_confirmation(true);
-    if (args.pParentWin)
-    {
-        chooser.set_transient_for(*args.pParentWin);
-        chooser.property_modal() = true;
-        chooser.property_destroy_with_parent() = true;
-        chooser.set_position(Gtk::WIN_POS_CENTER_ON_PARENT);
-    }
-    else
-    {
-        chooser.set_position(Gtk::WIN_POS_CENTER);
-    }
-    if (args.curr_folder.empty() || !Glib::file_test(args.curr_folder, Glib::FILE_TEST_IS_DIR))
-    {
-        chooser.set_current_folder(g_get_home_dir());
-    }
-    else
-    {
-        chooser.set_current_folder(args.curr_folder);
-    }
-    if (!args.curr_file_name.empty())
-    {
-        chooser.set_current_name(args.curr_file_name);
+        chooser->set_current_folder(args.curr_folder.string());
     }
     if (!args.filter_pattern.empty())
     {
@@ -1175,13 +1090,54 @@ std::string CtDialogs::file_save_as_dialog(const file_select_args& args)
         {
             rFileFilter->add_pattern(element);
         }
-        for (const std::string& element : args.filter_mime)
-        {
-            rFileFilter->add_mime_type(element);
-        }
-        chooser.add_filter(rFileFilter);
+        chooser->add_filter(rFileFilter);
     }
-    return (chooser.run() == Gtk::RESPONSE_ACCEPT ? chooser.get_filename() : "");
+    return (chooser->run() == Gtk::RESPONSE_ACCEPT ? chooser->get_filename() : "");
+}
+
+// The Select folder dialog, returns the retrieved folderpath or None
+std::string CtDialogs::folder_select_dialog(const std::string& curr_folder, Gtk::Window* pParentWin)
+{
+    auto chooser = Gtk::FileChooserNative::create(_("Select Folder"), *pParentWin, Gtk::FILE_CHOOSER_ACTION_SELECT_FOLDER);
+    if (curr_folder.empty() || !Glib::file_test(curr_folder, Glib::FILE_TEST_IS_DIR))
+    {
+        chooser->set_current_folder(g_get_home_dir());
+    }
+    else
+    {
+        chooser->set_current_folder(curr_folder);
+    }
+    return (chooser->run() == Gtk::RESPONSE_ACCEPT ? chooser->get_filename() : "");
+}
+
+// The Save file as dialog, Returns the retrieved filepath or None
+std::string CtDialogs::file_save_as_dialog(const file_select_args& args)
+{
+    auto chooser = Gtk::FileChooserNative::create(_("Save File as"), *args.pParentWin, Gtk::FILE_CHOOSER_ACTION_SAVE);
+    chooser->set_do_overwrite_confirmation(true);
+    if (args.curr_folder.empty() || !fs::is_directory(args.curr_folder))
+    {
+        chooser->set_current_folder(g_get_home_dir());
+    }
+    else
+    {
+        chooser->set_current_folder(args.curr_folder.string());
+    }
+    if (!args.curr_file_name.empty())
+    {
+        chooser->set_current_name(args.curr_file_name.string());
+    }
+    if (!args.filter_pattern.empty())
+    {
+        Glib::RefPtr<Gtk::FileFilter> rFileFilter = Gtk::FileFilter::create();
+        rFileFilter->set_name(args.filter_name);
+        for (const std::string& element : args.filter_pattern)
+        {
+            rFileFilter->add_pattern(element);
+        }
+        chooser->add_filter(rFileFilter);
+    }
+    return (chooser->run() == Gtk::RESPONSE_ACCEPT ? chooser->get_filename() : "");
 }
 
 // Insert/Edit Image
@@ -1538,6 +1494,10 @@ bool CtDialogs::choose_data_storage_dialog(storage_select_args& args)
             radiobutton_xml_pass_protected.set_active(true);
         }
     }
+    else {
+        radiobutton_sqlite_not_protected.set_active(true);
+        passw_frame.set_sensitive(false);
+    }
 
     Gtk::Box* pContentArea = dialog.get_content_area();
     pContentArea->set_spacing(5);
@@ -1730,7 +1690,7 @@ bool CtDialogs::node_prop_dialog(const Glib::ustring &title,
         const Gtk::TreeIter treeIter = CtDialogs::choose_item_dialog(dialog, _("Automatic Syntax Highlighting"), itemStore);
         if (treeIter)
         {
-            std::string stock_id = treeIter->get_value(itemStore->columns.desc);
+            std::string stock_id = pCtMainWin->get_code_icon_name(treeIter->get_value(itemStore->columns.desc));
             button_prog_lang.set_label(stock_id);
             button_prog_lang.set_image(*pCtMainWin->new_image_from_stock(stock_id, Gtk::ICON_SIZE_MENU));
         }
@@ -1812,7 +1772,11 @@ bool CtDialogs::node_prop_dialog(const Glib::ustring &title,
         return false;
     }
 
-    nodeData.name = name_entry.get_text();
+    nodeData.name = str::trim(name_entry.get_text());
+    nodeData.name = str::replace(nodeData.name, "\r", ""); // the given name can contain \r and \n as a result
+    nodeData.name = str::replace(nodeData.name, "\n", ""); // of cope/paste from some source
+    nodeData.name = str::replace(nodeData.name, "\t", " ");
+
     if (nodeData.name.empty())
     {
         nodeData.name = CtConst::CHAR_QUESTION;

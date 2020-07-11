@@ -23,10 +23,9 @@
 
 #include "ct_misc_utils.h"
 #include "ct_const.h"
+#include "ct_filesystem.h"
+#include "tests_common.h"
 #include "CppUTest/CommandLineTestRunner.h"
-#include "gtkmm/textbuffer.h"
-#include "test_consts.h"
-
 
 
 TEST_GROUP(MiscUtilsGroup)
@@ -128,7 +127,6 @@ TEST(MiscUtilsGroup, iter_util__startswith_any)
     CHECK(not CtTextIterUtil::startswith_any(buffer->begin(), std::array<const gchar*, 3>{"M", "Sai", "123"}));
 }
 
-
 TEST(MiscUtilsGroup, contains)
 {
     CHECK(CtStrUtil::contains(CtConst::TAG_PROPERTIES, CtConst::TAG_STRIKETHROUGH));
@@ -142,7 +140,6 @@ TEST(MiscUtilsGroup, getFontMisc)
     STRCMP_EQUAL("Noto Sans", CtFontUtil::get_font_family("Noto Sans 9").c_str());
     STRCMP_EQUAL("9", CtFontUtil::get_font_size_str("Noto Sans 9").c_str());
 }
-
 
 TEST(MiscUtilsGroup, set_rgb24str_from_rgb24int)
 {
@@ -239,7 +236,6 @@ TEST(MiscUtilsGroup, str__indexOf)
     LONGS_EQUAL(str::indexOf("Saitama さいたま市", uc), 8);
 }
 
-
 TEST(MiscUtilsGroup, str__join)
 {
     std::vector<std::string> empty_v;
@@ -301,48 +297,35 @@ TEST(MiscUtilsGroup, vec_remove)
     CHECK(v_3.size() == 2);
 }
 
-TEST(MiscUtilsGroup, get_cherrytree_datadir)
-{
-    // we expect the unit test to be run from the built sources
-    STRCMP_EQUAL(_CMAKE_SOURCE_DIR, CtFileSystem::get_cherrytree_datadir().c_str());
-}
-
-TEST(MiscUtilsGroup, get_cherrytree_localedir)
-{
-    // we expect the unit test to be run from the built sources
-    STRCMP_EQUAL(Glib::canonicalize_filename(Glib::build_filename(_CMAKE_SOURCE_DIR, "po")).c_str(), CtFileSystem::get_cherrytree_localedir().c_str());
-}
-
 TEST(MiscUtilsGroup, get__uri_type)
 {
     CHECK(CtMiscUtil::get_uri_type("https://google.com") == CtMiscUtil::URI_TYPE::WEB_URL);
     CHECK(CtMiscUtil::get_uri_type("http://google.com") == CtMiscUtil::URI_TYPE::WEB_URL);
-    
+
     CHECK(CtMiscUtil::get_uri_type("/home") == CtMiscUtil::URI_TYPE::LOCAL_FILEPATH);
     CHECK(CtMiscUtil::get_uri_type("C:\\\\windows") == CtMiscUtil::URI_TYPE::LOCAL_FILEPATH);
-    CHECK(CtMiscUtil::get_uri_type(unitTestsDataDir) == CtMiscUtil::URI_TYPE::LOCAL_FILEPATH);
-    
+    CHECK(CtMiscUtil::get_uri_type(UT::unitTestsDataDir) == CtMiscUtil::URI_TYPE::LOCAL_FILEPATH);
+
     CHECK(CtMiscUtil::get_uri_type("smb://localhost") == CtMiscUtil::URI_TYPE::UNKNOWN);
     CHECK(CtMiscUtil::get_uri_type("my invalid uri") == CtMiscUtil::URI_TYPE::UNKNOWN);
 }
 
-TEST(MiscUtilsGroup, mime__type_contains) 
+TEST(MiscUtilsGroup, mime__type_contains)
 {
 // some tests don't work on TRAVIS with WIN32
 #if !(defined(_TRAVIS) && defined(_WIN32))
-    CHECK(CtMiscUtil::mime_type_contains(unitTestsDataDir+"/mimetype_txt.txt", "text/"));
-    CHECK(CtMiscUtil::mime_type_contains(unitTestsDataDir+"/mimetype_html.html", "text/"));
-    CHECK(CtMiscUtil::mime_type_contains(unitTestsDataDir+"/mimetype_html.html", "html"));
+    CHECK(CtMiscUtil::mime_type_contains(UT::unitTestsDataDir+"/mimetype_txt.txt", "text/"));
+    CHECK(CtMiscUtil::mime_type_contains(UT::unitTestsDataDir+"/mimetype_html.html", "text/"));
+    CHECK(CtMiscUtil::mime_type_contains(UT::unitTestsDataDir+"/mimetype_html.html", "html"));
 
-// test doesn't work on WIN32
-#ifndef _WIN32
-    CHECK(CtMiscUtil::mime_type_contains(unitTestsDataDir+"/mimetype_cpp.cpp", "text/"));
+// test doesn't work on WIN32 and MacOS (Travis)
+#if !(defined(_WIN32) || (defined(_TRAVIS) && defined(__APPLE__)))
+    CHECK(CtMiscUtil::mime_type_contains(UT::unitTestsDataDir+"/mimetype_cpp.cpp", "text/"));
 #endif
 
-    CHECK(!CtMiscUtil::mime_type_contains(unitTestsDataDir+"/mimetype_ctb.ctb", "text/"));
+    CHECK(!CtMiscUtil::mime_type_contains(UT::unitTestsDataDir+"/mimetype_ctb.ctb", "text/"));
 #endif
 }
-
 
 TEST(MiscUtilsGroup, parallel_for)
 {
@@ -368,8 +351,6 @@ TEST(MiscUtilsGroup, parallel_for)
     CHECK(check_range_in_vec(vec, 1, 1) == false);
     CHECK(check_range_in_vec(vec, 1, 2) == false);
 
-
-
     // parallel_for splits the given range on slices, one slice per thread.
     // The formula to calculate slices is not simple, so the unit test checks that every element
     // in the given range is processed, processed only once, no one is skipped,
@@ -387,30 +368,14 @@ TEST(MiscUtilsGroup, parallel_for)
         }
 }
 
-
-
-TEST_GROUP(FileSystemGroup)
+TEST(MiscUtilsGroup, external_uri_from_internal) 
 {
-};
-
-
-TEST(FileSystemGroup, get_file_stem)
-{
+    STRCMP_EQUAL("https://example.com", CtStrUtil::external_uri_from_internal("webs https://example.com").c_str());
+    STRCMP_EQUAL("/home/foo/bar\n", CtStrUtil::external_uri_from_internal("file L2hvbWUvZm9vL2Jhcgo=").c_str());
+    // looks like CppUTest is built on Win32 without the Standard C++ Library 
 #ifndef _WIN32
-    STRCMP_EQUAL("", CtFileSystem::get_file_stem("").c_str());
-    STRCMP_EQUAL("file", CtFileSystem::get_file_stem("/root/file").c_str());
-    STRCMP_EQUAL("file", CtFileSystem::get_file_stem("/root/file.txt").c_str());
-    STRCMP_EQUAL("file.2", CtFileSystem::get_file_stem("/root/file.2.txt").c_str());
-    STRCMP_EQUAL(".txt", CtFileSystem::get_file_stem("/root/.txt").c_str());
+    CHECK_THROWS(std::logic_error, CtStrUtil::external_uri_from_internal("https://example.com"));
+    CHECK_THROWS(std::logic_error, CtStrUtil::external_uri_from_internal("/home/foo/bar"));
 #endif
 }
 
-
-
-int main(int ac, char** av)
-{
-    // libp7za has memory leaks
-    MemoryLeakWarningPlugin::turnOffNewDeleteOverloads();
-
-    return CommandLineTestRunner::RunAllTests(ac, av);
-}

@@ -29,6 +29,7 @@
 #include "ct_main_win.h"
 #include "ct_storage_control.h"
 #include "ct_logging.h"
+#include <fstream>
 
 
 CtStorageXml::CtStorageXml(CtMainWin* pCtMainWin) : _pCtMainWin(pCtMainWin)
@@ -51,24 +52,12 @@ void CtStorageXml::test_connection()
 
 }
 
-std::unique_ptr<xmlpp::DomParser> get_parser(const Glib::ustring& file_path) {
-    // open file
-    auto parser = std::make_unique<xmlpp::DomParser>();
-    parser->parse_file(file_path);
-    if (!parser->get_document())
-        throw std::runtime_error("document is null");
-    if (parser->get_document()->get_root_node()->get_name() != CtConst::APP_NAME)
-        throw std::runtime_error("document contains the wrong node root");
-    return parser;
-}
-
-
-bool CtStorageXml::populate_treestore(const Glib::ustring& file_path, Glib::ustring& error)
+bool CtStorageXml::populate_treestore(const fs::path& file_path, Glib::ustring& error)
 {
     try
     {
         // open file
-        auto parser = get_parser(file_path);
+        auto parser = _get_parser(file_path);
 
         // read bookmarks
         for (xmlpp::Node* xml_node :  parser->get_document()->get_root_node()->get_children("bookmarks"))
@@ -79,15 +68,16 @@ bool CtStorageXml::populate_treestore(const Glib::ustring& file_path, Glib::ustr
         }
 
         // read nodes
-        std::function<void(xmlpp::Element*, Gtk::TreeIter)> nodes_from_xml;
-        nodes_from_xml = [&](xmlpp::Element* xml_element, Gtk::TreeIter parent_iter) {
-            Gtk::TreeIter new_iter = _node_from_xml(xml_element, parent_iter, -1);
+        std::function<void(xmlpp::Element*, const gint64, Gtk::TreeIter)> nodes_from_xml;
+        nodes_from_xml = [&](xmlpp::Element* xml_element, const gint64 sequence, Gtk::TreeIter parent_iter) {
+            Gtk::TreeIter new_iter = _node_from_xml(xml_element, sequence, parent_iter, -1);
+            gint64 child_sequence = 0;
             for (xmlpp::Node* xml_node : xml_element->get_children("node"))
-                nodes_from_xml(static_cast<xmlpp::Element*>(xml_node), new_iter);
+                nodes_from_xml(static_cast<xmlpp::Element*>(xml_node), ++child_sequence, new_iter);
         };
-
+        gint64 sequence = 0;
         for (xmlpp::Node* xml_node: parser->get_document()->get_root_node()->get_children("node"))
-            nodes_from_xml(static_cast<xmlpp::Element*>(xml_node), Gtk::TreeIter());
+            nodes_from_xml(static_cast<xmlpp::Element*>(xml_node), ++sequence, Gtk::TreeIter());
 
         return true;
     }
@@ -98,7 +88,7 @@ bool CtStorageXml::populate_treestore(const Glib::ustring& file_path, Glib::ustr
     }
  }
 
-bool CtStorageXml::save_treestore(const Glib::ustring& file_path, const CtStorageSyncPending&, Glib::ustring& error)
+bool CtStorageXml::save_treestore(const fs::path& file_path, const CtStorageSyncPending&, Glib::ustring& error)
 {
     try
     {
@@ -123,7 +113,7 @@ bool CtStorageXml::save_treestore(const Glib::ustring& file_path, const CtStorag
         }
 
         // write file
-        xml_doc.write_to_file(file_path);
+        xml_doc.write_to_file_formatted(file_path.string());
 
         return true;
     }
@@ -136,24 +126,25 @@ bool CtStorageXml::save_treestore(const Glib::ustring& file_path, const CtStorag
 
 void CtStorageXml::vacuum()
 {
-
 }
 
-void CtStorageXml::import_nodes(const std::string& path)
+void CtStorageXml::import_nodes(const fs::path& path)
 {
-    auto parser = get_parser(path);
+    auto parser = _get_parser(path);
 
-    std::function<void(xmlpp::Element*, Gtk::TreeIter)> recursive_import_func;
-    recursive_import_func = [this, &recursive_import_func](xmlpp::Element* xml_element, Gtk::TreeIter parent_iter) {
-        auto new_iter = _pCtMainWin->get_tree_store().to_ct_tree_iter(_node_from_xml(xml_element, parent_iter, _pCtMainWin->get_tree_store().node_id_get()));
+    std::function<void(xmlpp::Element*, const gint64 sequence, Gtk::TreeIter)> recursive_import_func;
+    recursive_import_func = [this, &recursive_import_func](xmlpp::Element* xml_element, const gint64 sequence, Gtk::TreeIter parent_iter) {
+        auto new_iter = _pCtMainWin->get_tree_store().to_ct_tree_iter(_node_from_xml(xml_element, sequence, parent_iter, _pCtMainWin->get_tree_store().node_id_get()));
         new_iter.pending_new_db_node();
 
+        gint64 child_sequence = 0;
         for (xmlpp::Node* xml_node : xml_element->get_children("node"))
-            recursive_import_func(static_cast<xmlpp::Element*>(xml_node), new_iter);
+            recursive_import_func(static_cast<xmlpp::Element*>(xml_node), ++child_sequence, new_iter);
     };
 
+    gint64 sequence = 0;
     for (xmlpp::Node* xml_node: parser->get_document()->get_root_node()->get_children("node"))
-        recursive_import_func(static_cast<xmlpp::Element*>(xml_node), _pCtMainWin->get_tree_store().to_ct_tree_iter(Gtk::TreeIter()));
+        recursive_import_func(static_cast<xmlpp::Element*>(xml_node), ++sequence, _pCtMainWin->get_tree_store().to_ct_tree_iter(Gtk::TreeIter()));
 }
 
 Glib::RefPtr<Gsv::Buffer> CtStorageXml::get_delayed_text_buffer(const gint64& node_id,
@@ -170,7 +161,7 @@ Glib::RefPtr<Gsv::Buffer> CtStorageXml::get_delayed_text_buffer(const gint64& no
     return  CtStorageXmlHelper(_pCtMainWin).create_buffer_and_widgets_from_xml(xml_element, syntax, widgets, nullptr, -1);
 }
 
-Gtk::TreeIter CtStorageXml::_node_from_xml(xmlpp::Element* xml_element, Gtk::TreeIter parent_iter, gint64 new_id)
+Gtk::TreeIter CtStorageXml::_node_from_xml(xmlpp::Element* xml_element, gint64 sequence, Gtk::TreeIter parent_iter, gint64 new_id)
 {
     CtNodeData node_data;
     if (new_id == -1)
@@ -186,7 +177,7 @@ Gtk::TreeIter CtStorageXml::_node_from_xml(xmlpp::Element* xml_element, Gtk::Tre
     node_data.foregroundRgb24 = xml_element->get_attribute_value("foreground");
     node_data.tsCreation = CtStrUtil::gint64_from_gstring(xml_element->get_attribute_value("ts_creation").c_str());
     node_data.tsLastSave = CtStrUtil::gint64_from_gstring(xml_element->get_attribute_value("ts_lastSave").c_str());
-
+    node_data.sequence = sequence;
     if (new_id == -1)
     {
         // because of widgets which are slow to insert for now, delay creating buffers
@@ -214,7 +205,33 @@ void CtStorageXml::_nodes_to_xml(CtTreeIter* ct_tree_iter, xmlpp::Element* p_nod
     }
 }
 
+std::unique_ptr<xmlpp::DomParser> CtStorageXml::_get_parser(const fs::path& file_path)
+{
+    // open file
+    auto parser = std::make_unique<xmlpp::DomParser>();
+    try
+    {
+        parser->parse_file(file_path.string());
+    }
+    catch (xmlpp::exception& e)
+    {
+        spdlog::error("CtStorageXml::_get_parser: failed to read xml file {}, {}", file_path.string(), e.what());
+        spdlog::info("CtStorageXml::_get_parser: trying to sanitize xml file ...");
 
+        auto file = std::fstream(file_path.string(), std::ios::in);
+        std::string buffer(std::istreambuf_iterator<char>(file), {});
+        file.close();
+        Glib::ustring xml_content = str::sanitize_bad_symbols(buffer);
+        parser->parse_memory(xml_content);
+        spdlog::info("CtStorageXml::_get_parser: xml file is sanitized");
+    }
+
+    if (!parser->get_document())
+        throw std::runtime_error("document is null");
+    if (parser->get_document()->get_root_node()->get_name() != CtConst::APP_NAME)
+        throw std::runtime_error("document contains the wrong node root");
+    return parser;
+}
 
 
 CtStorageXmlHelper::CtStorageXmlHelper(CtMainWin* pCtMainWin) : _pCtMainWin(pCtMainWin)
@@ -298,7 +315,24 @@ void CtStorageXmlHelper::get_text_buffer_one_slot_from_xml(Glib::RefPtr<Gsv::Buf
 Glib::RefPtr<Gsv::Buffer> CtStorageXmlHelper::create_buffer_no_widgets(const Glib::ustring& syntax, const char* xml_content)
 {
     xmlpp::DomParser parser;
-    parser.parse_memory(xml_content);
+    try
+    {
+        parser.parse_memory(xml_content);
+    }
+    catch (xmlpp::parse_error& e)
+    {
+        spdlog::error("CtStorageXmlHelper:create_buffer_no_widgets: {}", e.what());
+        try
+        {
+            parser.parse_memory(str::sanitize_bad_symbols(xml_content));
+            spdlog::info("CtStorageXmlHelper:create_buffer_no_widgets: xml is sanitized");
+        }
+        catch (std::exception& e)
+        {
+            spdlog::error("CtStorageXmlHelper:create_buffer_no_widgets: sanitizing xml is failed, {}", e.what());
+            return Glib::RefPtr<Gsv::Buffer>();
+        }
+    }
     std::list<CtAnchoredWidget*> widgets;
     if (parser.get_document() && parser.get_document()->get_root_node())
         return create_buffer_and_widgets_from_xml(parser.get_document()->get_root_node(), syntax, widgets, nullptr, -1);
@@ -337,27 +371,32 @@ void CtStorageXmlHelper::populate_table_matrix(std::vector<std::vector<CtTableCe
     }
 }
 
-/*static*/ void CtStorageXmlHelper::save_buffer_no_widgets_to_xml(xmlpp::Element* p_node_parent, Glib::RefPtr<Gtk::TextBuffer> buffer,
-                                                       int start_offset, int end_offset, const gchar change_case)
+/*static*/ void CtStorageXmlHelper::save_buffer_no_widgets_to_xml(xmlpp::Element* p_node_parent,
+                                                                  Glib::RefPtr<Gtk::TextBuffer> rBuffer,
+                                                                  int start_offset,
+                                                                  int end_offset,
+                                                                  const gchar change_case)
 {
-    auto rich_txt_serialize = [&](Gtk::TextIter& start_iter, Gtk::TextIter& end_iter, std::map<std::string_view, std::string>& curr_attributes) {
-         xmlpp::Element* p_rich_text_node = p_node_parent->add_child("rich_text");
-         for (const auto& map_iter : curr_attributes)
-         {
-             if (!map_iter.second.empty())
-                p_rich_text_node->set_attribute(map_iter.first.data(), map_iter.second);
-         }
-         Glib::ustring slot_text = start_iter.get_text(end_iter);
-         if ('n' != change_case)
-         {
-             if ('l' == change_case) slot_text = slot_text.lowercase();
-             else if ('u' == change_case) slot_text = slot_text.uppercase();
-             else if ('t' == change_case) slot_text = str::swapcase(slot_text);
-         }
-         p_rich_text_node->add_child_text(slot_text);
+    CtTextIterUtil::SerializeFunc rich_txt_serialize = [&](Gtk::TextIter& start_iter,
+                                                           Gtk::TextIter& end_iter,
+                                                           CtTextIterUtil::CurrAttributesMap& curr_attributes) {
+        xmlpp::Element* p_rich_text_node = p_node_parent->add_child("rich_text");
+        for (const auto& map_iter : curr_attributes)
+        {
+            if (!map_iter.second.empty())
+               p_rich_text_node->set_attribute(map_iter.first.data(), map_iter.second);
+        }
+        Glib::ustring slot_text = start_iter.get_text(end_iter);
+        if ('n' != change_case)
+        {
+            if ('l' == change_case) slot_text = slot_text.lowercase();
+            else if ('u' == change_case) slot_text = slot_text.uppercase();
+            else if ('t' == change_case) slot_text = str::swapcase(slot_text);
+        }
+        p_rich_text_node->add_child_text(slot_text);
     };
 
-    CtTextIterUtil::generic_process_slot(start_offset, end_offset, buffer, rich_txt_serialize);
+    CtTextIterUtil::generic_process_slot(start_offset, end_offset, rBuffer, rich_txt_serialize);
 }
 
 void CtStorageXmlHelper::_add_rich_text_from_xml(Glib::RefPtr<Gsv::Buffer> buffer, xmlpp::Element* xml_element, Gtk::TextIter* text_insert_pos)
@@ -385,7 +424,7 @@ CtAnchoredWidget* CtStorageXmlHelper::_create_image_from_xml(xmlpp::Element* xml
     if (!anchorName.empty())
         return new CtImageAnchor(_pCtMainWin, anchorName, charOffset, justification);
 
-    const Glib::ustring file_name = xml_element->get_attribute_value("filename");
+    fs::path file_name = static_cast<std::string>(xml_element->get_attribute_value("filename"));
     xmlpp::TextNode* pTextNode = xml_element->get_child_text();
     const std::string encodedBlob = pTextNode ? pTextNode->get_content() : "";
     const std::string rawBlob = Glib::Base64::decode(encodedBlob);
@@ -440,5 +479,3 @@ CtAnchoredWidget* CtStorageXmlHelper::_create_table_from_xml(xmlpp::Element* xml
 
     return new CtTable(_pCtMainWin, tableMatrix, colMin, colMax, charOffset, justification);
 }
-
-

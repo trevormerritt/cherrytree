@@ -29,11 +29,6 @@
 #include "ct_actions.h"
 #include "ct_logging.h"
 
-
-CtTreeModelColumns::~CtTreeModelColumns()
-{
-}
-
 CtTreeIter::CtTreeIter(Gtk::TreeIter iter, const CtTreeModelColumns* pColumns, CtMainWin* pCtMainWin)
  : Gtk::TreeIter(iter),
    _pColumns(pColumns),
@@ -197,6 +192,7 @@ void CtTreeIter::remove_all_embedded_widgets()
 {
     if (*this)
     {
+        get_node_text_buffer(); // to load buffer\widgets if not loaded
         for (auto widget: (*this)->get_value(_pColumns->colAnchoredWidgets))
             delete widget;
         (*this)->set_value(_pColumns->colAnchoredWidgets, std::list<CtAnchoredWidget*>());
@@ -205,11 +201,17 @@ void CtTreeIter::remove_all_embedded_widgets()
 
 std::list<CtAnchoredWidget*> CtTreeIter::get_embedded_pixbufs_tables_codeboxes_fast()
 {
-    return (*this) ? (*this)->get_value(_pColumns->colAnchoredWidgets) : std::list<CtAnchoredWidget*>();
+    if (*this)
+    {
+        get_node_text_buffer(); // to load buffer\widgets if not loaded
+        return (*this)->get_value(_pColumns->colAnchoredWidgets);
+    }
+    return std::list<CtAnchoredWidget*>();
 }
 
 std::list<CtAnchoredWidget*> CtTreeIter::get_embedded_pixbufs_tables_codeboxes(int start_offset /*= -1*/, int end_offset /*= -1*/)
 {
+    get_node_text_buffer(); // to load buffer\widgets if not loaded
     std::list<CtAnchoredWidget*> retAnchoredWidgetsList;
     if ((*this) and (*this)->get_value(_pColumns->colAnchoredWidgets).size() > 0)
     {
@@ -462,7 +464,7 @@ void CtTreeStore::tree_view_connect(Gtk::TreeView* pTreeView)
     }
 }
 
-void CtTreeStore::text_view_apply_textbuffer(const CtTreeIter& treeIter, CtTextView* pTextView)
+void CtTreeStore::text_view_apply_textbuffer(CtTreeIter& treeIter, CtTextView* pTextView)
 {
     if (not static_cast<bool>(treeIter))
     {
@@ -479,18 +481,17 @@ void CtTreeStore::text_view_apply_textbuffer(const CtTreeIter& treeIter, CtTextV
     }
     _curr_node_sigc_conn.clear();
 
-    CtTreeIter node = to_ct_tree_iter(treeIter);
-    spdlog::debug("Node name: {}", node.get_node_name());
+    spdlog::debug("Node name: {}", treeIter.get_node_name());
 
-    Glib::RefPtr<Gsv::Buffer> rTextBuffer = node.get_node_text_buffer();
-    _pCtMainWin->apply_syntax_highlighting(rTextBuffer, node.get_node_syntax_highlighting());
-    pTextView->setup_for_syntax(node.get_node_syntax_highlighting());
+    Glib::RefPtr<Gsv::Buffer> rTextBuffer = treeIter.get_node_text_buffer();
+    _pCtMainWin->apply_syntax_highlighting(rTextBuffer, treeIter.get_node_syntax_highlighting());
+    pTextView->setup_for_syntax(treeIter.get_node_syntax_highlighting());
     pTextView->set_buffer(rTextBuffer);
-    pTextView->set_spell_check(node.get_node_is_rich_text());
+    pTextView->set_spell_check(treeIter.get_node_is_rich_text());
     pTextView->set_sensitive(true);
-    pTextView->set_editable(not node.get_node_read_only());
+    pTextView->set_editable(not treeIter.get_node_read_only());
 
-    for (CtAnchoredWidget* pCtAnchoredWidget : node.get_embedded_pixbufs_tables_codeboxes_fast())
+    for (CtAnchoredWidget* pCtAnchoredWidget : treeIter.get_embedded_pixbufs_tables_codeboxes_fast())
     {
         Glib::RefPtr<Gtk::TextChildAnchor> rChildAnchor = pCtAnchoredWidget->getTextChildAnchor();
         if (rChildAnchor)
@@ -582,7 +583,7 @@ void CtTreeStore::get_node_data(const Gtk::TreeIter& treeIter, CtNodeData& nodeD
     nodeData.rTextBuffer = row[_columns.rColTextBuffer];
     nodeData.nodeId = row[_columns.colNodeUniqueId];
     nodeData.syntax = row[_columns.colSyntaxHighlighting];
-    //row[_columns.colNodeSequence] = ;
+    nodeData.sequence = row[_columns.colNodeSequence];
     nodeData.tags = row[_columns.colNodeTags];
     nodeData.isRO = row[_columns.colNodeRO];
     //row[_columns.rColPixbufAux] = ;
@@ -597,12 +598,14 @@ void CtTreeStore::get_node_data(const Gtk::TreeIter& treeIter, CtNodeData& nodeD
 void CtTreeStore::update_node_data(const Gtk::TreeIter& treeIter, const CtNodeData& nodeData)
 {
     Gtk::TreeRow row = *treeIter;
-    row[_columns.rColPixbuf] = _get_node_icon(_rTreeStore->iter_depth(treeIter), nodeData.syntax, nodeData.customIconId);
+    if (not _pCtMainWin->no_gui()) {
+        row[_columns.rColPixbuf] = _get_node_icon(_rTreeStore->iter_depth(treeIter), nodeData.syntax, nodeData.customIconId);
+    }
     row[_columns.colNodeName] = nodeData.name;
     row[_columns.rColTextBuffer] = nodeData.rTextBuffer;
     row[_columns.colNodeUniqueId] = nodeData.nodeId;
     row[_columns.colSyntaxHighlighting] = nodeData.syntax;
-    //row[_columns.colNodeSequence] = ; // either not changed or updated somewhere
+    row[_columns.colNodeSequence] = nodeData.sequence;
     row[_columns.colNodeTags] = nodeData.tags;
     row[_columns.colNodeRO] = nodeData.isRO;
     //row[_columns.rColPixbufAux] = ;  // will be updated by update_node_aux_icon
@@ -620,6 +623,9 @@ void CtTreeStore::update_node_data(const Gtk::TreeIter& treeIter, const CtNodeDa
 
 void CtTreeStore::update_node_icon(const Gtk::TreeIter& treeIter)
 {
+    if (_pCtMainWin->no_gui()) {
+        return;
+    }
     auto icon = _get_node_icon(_rTreeStore->iter_depth(treeIter),
                                treeIter->get_value(_columns.colSyntaxHighlighting),
                                treeIter->get_value(_columns.colCustomIconId));
@@ -639,6 +645,9 @@ void CtTreeStore::update_nodes_icon(Gtk::TreeIter father_iter, bool cherry_only)
 
 void CtTreeStore::update_node_aux_icon(const Gtk::TreeIter& treeIter)
 {
+    if (_pCtMainWin->no_gui()) {
+        return;
+    }
     bool is_ro = treeIter->get_value(_columns.colNodeRO);
     bool is_bookmark = vec::exists(_bookmarks, treeIter->get_value(_columns.colNodeUniqueId));
     std::string stock_id;
@@ -902,4 +911,35 @@ void CtTreeStore::nodes_sequences_fix(Gtk::TreeIter father_iter,  bool process_c
         if (process_children)
             nodes_sequences_fix(child, process_children);
     }
+}
+
+void CtTreeStore::populateSummaryInfo(CtSummaryInfo& summaryInfo)
+{
+    _rTreeStore->foreach(
+        [&](const Gtk::TreePath& /*treePath*/, const Gtk::TreeIter& treeIter)->bool
+        {
+            auto ctTreeIter = to_ct_tree_iter(treeIter);
+            const auto nodeSyntax = ctTreeIter.get_node_syntax_highlighting();
+            if (nodeSyntax == CtConst::RICH_TEXT_ID) {
+                ++summaryInfo.nodes_rich_text_num;
+            }
+            else if (nodeSyntax == CtConst::PLAIN_TEXT_ID) {
+                ++summaryInfo.nodes_plain_text_num;
+            }
+            else {
+                ++summaryInfo.nodes_code_num;
+            }
+            (void)ctTreeIter.get_node_text_buffer(); // ensure the node content is populated
+            for (CtAnchoredWidget* pAnchoredWidget : ctTreeIter.get_embedded_pixbufs_tables_codeboxes_fast()) {
+                switch (pAnchoredWidget->get_type()) {
+                    case CtAnchWidgType::CodeBox: ++summaryInfo.codeboxes_num; break;
+                    case CtAnchWidgType::ImageAnchor: ++summaryInfo.anchors_num; break;
+                    case CtAnchWidgType::ImageEmbFile: ++summaryInfo.embfile_num; break;
+                    case CtAnchWidgType::ImagePng: ++summaryInfo.images_num; break;
+                    case CtAnchWidgType::Table: ++summaryInfo.tables_num; break;
+                }
+            }
+            return false; /* false for continue */
+        }
+    );
 }

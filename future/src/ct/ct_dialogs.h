@@ -24,7 +24,7 @@
 #pragma once
 
 #include "ct_misc_utils.h"
-
+#include "ct_filesystem.h"
 #include <gtkmm/dialog.h>
 #include <gtkmm/liststore.h>
 #include <gtkmm/treestore.h>
@@ -229,11 +229,11 @@ bool link_handle_dialog(CtMainWin& ctMainWin,
 struct file_select_args
 {
     Gtk::Window*                pParentWin{nullptr};
-    std::string                 curr_folder;
-    std::string                 curr_file_name;
+    fs::path                    curr_folder;
+    fs::path                    curr_file_name;
     Glib::ustring               filter_name;
     std::vector<std::string>    filter_pattern;
-    std::vector<std::string>    filter_mime;
+    // std::vector<std::string>    filter_mime; doesn't work with native dialog
 
     file_select_args(Gtk::Window* win) : pParentWin(win) {}
 };
@@ -242,8 +242,7 @@ struct file_select_args
 std::string file_select_dialog(const file_select_args& args);
 
 // The Select folder dialog, returns the retrieved folderpath or None
-std::string folder_select_dialog(const std::string& curr_folder,
-                                 Gtk::Window* pParentWin = nullptr);
+std::string folder_select_dialog(const std::string& curr_folder, Gtk::Window* pParentWin);
 
 // The Save file as dialog, Returns the retrieved filepath or None
 std::string file_save_as_dialog(const file_select_args& args);
@@ -262,7 +261,7 @@ struct storage_select_args
     Gtk::Window*  pParentWin{nullptr};
     CtDocType     ctDocType{CtDocType::None};
     CtDocEncrypt  ctDocEncrypt{CtDocEncrypt::None};
-    std::string   password;
+    Glib::ustring password;
 
     storage_select_args(Gtk::Window* win) : pParentWin(win) {}
 };

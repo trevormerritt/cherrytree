@@ -78,15 +78,16 @@ class CtMainWin : public Gtk::ApplicationWindow
 {
 public:
     CtMainWin(
-              bool                     start_hidden,
-              CtConfig*                pCtConfig,
-              CtTmp*                   pCtTmp,
-              Gtk::IconTheme*          pGtkIconTheme,
-              Glib::RefPtr<Gtk::TextTagTable> rGtkTextTagTable,
-              Glib::RefPtr<Gtk::CssProvider> rGtkCssProvider,
-              Gsv::LanguageManager*    pGsvLanguageManager,
-              Gsv::StyleSchemeManager* pGsvStyleSchemeManager,
-              Gtk::StatusIcon*         pGtkStatusIcon);
+        bool                     no_gui,
+        CtConfig*                pCtConfig,
+        CtTmp*                   pCtTmp,
+        Gtk::IconTheme*          pGtkIconTheme,
+        Glib::RefPtr<Gtk::TextTagTable> rGtkTextTagTable,
+        Glib::RefPtr<Gtk::CssProvider> rGtkCssProvider,
+        Gsv::LanguageManager*    pGsvLanguageManager,
+        Gsv::StyleSchemeManager* pGsvStyleSchemeManager,
+        Gtk::StatusIcon*         pGtkStatusIcon
+    );
     virtual ~CtMainWin();
 
     void config_apply();
@@ -94,12 +95,12 @@ public:
 
     void update_theme();
 
-    bool file_open(const std::string& filepath, const std::string& node_to_focus);
+    bool file_open(const fs::path& filepath, const std::string& node_to_focus, const Glib::ustring password = "");
     bool file_save_ask_user();
     void file_save(bool need_vacuum);
-    void file_save_as(const std::string& new_filepath, const std::string& password);
+    void file_save_as(const std::string& new_filepath, const Glib::ustring& password);
     void file_autosave_restart();
-    bool file_insert_plain_text(const std::string& filepath);
+    bool file_insert_plain_text(const fs::path& filepath);
 
     void reset();
     void update_window_save_needed(const CtSaveNeededUpdType update_type = CtSaveNeededUpdType::None,
@@ -134,6 +135,7 @@ public:
 
     bool&         user_active()      { return _userActive; } // use as a function, because it's easier to put breakpoint
     bool&         force_exit()       { return _forceExit; }
+    bool          no_gui()           { return _no_gui; }
     int&          cursor_key_press() { return _cursorKeyPress; }
     int&          hovering_link_iter_offset() { return _hovering_link_iter_offset; }
 
@@ -162,6 +164,7 @@ public:
     void menu_set_items_recent_documents();
     void menu_set_items_special_chars();
     void menu_set_visible_exit_app(bool visible);
+    void menu_rebuild_toolbar(bool new_toolbar);
 
     void config_switch_tree_side();
 
@@ -181,6 +184,8 @@ private:
     void                _on_treeview_cursor_changed(); // pygtk: on_node_changed
     bool                _on_treeview_button_release_event(GdkEventButton* event);
     void                _on_treeview_event_after(GdkEvent* event); // pygtk: on_event_after_tree
+    void                _on_treeview_row_activated(const Gtk::TreeModel::Path&, Gtk::TreeViewColumn*);
+    bool                _on_treeview_test_collapse_row(const Gtk::TreeModel::iterator&,const Gtk::TreeModel::Path&);
     bool                _on_treeview_key_press_event(GdkEventKey* event);
     bool                _on_treeview_popup_menu();
     bool                _on_treeview_scroll_event(GdkEventScroll* event);
@@ -199,6 +204,7 @@ private:
     void                _zoom_tree(bool is_increase);
 
 private:
+    const bool                   _no_gui;
     CtConfig*                    _pCtConfig;
     CtTmp*                       _pCtTmp;
     Gtk::IconTheme*              _pGtkIconTheme;
@@ -246,6 +252,7 @@ private:
     int                 _savedXpos{-1};
     int                 _savedYpos{-1};
     sigc::connection    _autosave_timout_connection;
+    bool                _tree_just_auto_expanded{false};
 
 public:
     sigc::signal<void>             signal_app_new_instance = sigc::signal<void>();

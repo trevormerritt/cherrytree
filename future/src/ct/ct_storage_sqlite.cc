@@ -1,7 +1,9 @@
 /*
  * ct_storage_sqlite.cc
  *
- * Copyright 2017-2020 Giuseppe Penone <giuspen@gmail.com>
+ * Copyright 2009-2020
+ * Giuseppe Penone <giuspen@gmail.com>
+ * Evgenii Gurianov <https://github.com/txe>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -122,6 +124,40 @@ struct sqlite3_stmt_auto
 };
 
 
+std::optional<std::vector<std::string>> get_quick_check_issues(sqlite3* db) {
+    if (!db) throw std::logic_error("get_quick_check_issues passed invalid database object");
+
+    sqlite3_stmt_auto stmt(db, "PRAGMA quick_check");
+    
+    std::vector<std::string> rows;
+    while(sqlite3_step(stmt) == SQLITE_ROW) {
+        std::string info = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        if (info == "ok" && rows.empty()) {
+            // First column and is OK, database is fine
+            return std::nullopt;
+        } else {
+            rows.emplace_back(info);
+        }
+    }
+    
+    return rows;
+}
+
+bool CtStorageSqlite::_check_database_integrity() {
+    auto corrupted_rows = get_quick_check_issues(_pDb);
+    if (!corrupted_rows) return true;
+
+    // Database is corrupted
+    std::string log_msg = "\n=== Database problems report ===\n";
+    for (const auto& corrupted_row : *corrupted_rows) {
+        log_msg += fmt::format(": {}\n", corrupted_row);
+    }
+    spdlog::warn(log_msg);
+
+    CtDialogs::warning_dialog(str::format(_("The database file %s is corrupt, see log for more details"), _file_path.string()), *_pCtMainWin);
+    return false;
+}
+
 CtStorageSqlite::CtStorageSqlite(CtMainWin* pCtMainWin) : _pCtMainWin(pCtMainWin)
 {
 
@@ -153,6 +189,7 @@ void CtStorageSqlite::test_connection()
             _exec_no_callback("DROP TABLE IF EXISTS test_table");
             return true;
         } catch (std::exception&) { return false; }
+        return true;
     };
 
     if (_pDb && test_readwrite())
@@ -172,9 +209,10 @@ void CtStorageSqlite::test_connection()
     }
     if (!test_readwrite())
         throw std::runtime_error(str::format(_("%s write failed - is file blocked by a sync program?"), _file_path));
+    if (!_check_database_integrity()) return;
 }
 
-bool CtStorageSqlite::populate_treestore(const Glib::ustring& file_path, Glib::ustring& error)
+bool CtStorageSqlite::populate_treestore(const fs::path& file_path, Glib::ustring& error)
 {
     _close_db();
     try
@@ -184,7 +222,7 @@ bool CtStorageSqlite::populate_treestore(const Glib::ustring& file_path, Glib::u
         _file_path = file_path;
         _fix_db_tables();
 
-        // todo: need validations and check corruption
+        if (!_check_database_integrity()) return false;
 
 
         // load bookmarks
@@ -195,14 +233,16 @@ bool CtStorageSqlite::populate_treestore(const Glib::ustring& file_path, Glib::u
                _pCtMainWin->get_tree_store().bookmarks_add(sqlite3_column_int64(stmt, 0));
 
         // load node tree
-        std::function<void(guint node_id, Gtk::TreeIter)> nodes_from_db;
-        nodes_from_db = [&](guint node_id, Gtk::TreeIter parent_iter) {
-            Gtk::TreeIter new_iter = _node_from_db(node_id, parent_iter, -1);
+        std::function<void(guint node_id, const gint64, Gtk::TreeIter)> nodes_from_db;
+        nodes_from_db = [&](guint node_id, const gint64 sequence, Gtk::TreeIter parent_iter) {
+            Gtk::TreeIter new_iter = _node_from_db(node_id, sequence, parent_iter, -1);
+            gint64 child_sequence = 0;
             for (gint64 child_node_id : _get_children_node_ids_from_db(node_id))
-                nodes_from_db(child_node_id, new_iter);
+                nodes_from_db(child_node_id, ++child_sequence, new_iter);
         };
+        gint64 sequence = 0;
         for (gint64 &top_node_id: _get_children_node_ids_from_db(0))
-            nodes_from_db(top_node_id, Gtk::TreeIter());
+            nodes_from_db(top_node_id, ++sequence, Gtk::TreeIter());
 
         // keep db open for lazy node buffer loading
         return true;
@@ -215,7 +255,7 @@ bool CtStorageSqlite::populate_treestore(const Glib::ustring& file_path, Glib::u
     }
 }
 
-bool CtStorageSqlite::save_treestore(const Glib::ustring& file_path, const CtStorageSyncPending& syncPending, Glib::ustring& error)
+bool CtStorageSqlite::save_treestore(const fs::path& file_path, const CtStorageSyncPending& syncPending, Glib::ustring& error)
 {
     try
     {
@@ -298,7 +338,7 @@ void CtStorageSqlite::vacuum()
     _exec_no_callback("REINDEX");
 }
 
-void CtStorageSqlite::_open_db(const std::string &path)
+void CtStorageSqlite::_open_db(const fs::path& path)
 {
     if (_pDb) return;
     if (sqlite3_open(path.c_str(), &_pDb) != SQLITE_OK)
@@ -318,7 +358,7 @@ void CtStorageSqlite::_close_db()
     //_file_path = ""; we need file_path for reconnection
 }
 
-Gtk::TreeIter CtStorageSqlite::_node_from_db(gint64 node_id, Gtk::TreeIter parent_iter, gint64 new_id)
+Gtk::TreeIter CtStorageSqlite::_node_from_db(gint64 node_id, gint64 sequence, Gtk::TreeIter parent_iter, gint64 new_id)
 {
     sqlite3_stmt_auto stmt(_pDb, "SELECT name, syntax, tags, is_ro, is_richtxt, ts_creation, ts_lastsave FROM node WHERE node_id=?");
     if (stmt.is_bad())
@@ -338,6 +378,7 @@ Gtk::TreeIter CtStorageSqlite::_node_from_db(gint64 node_id, Gtk::TreeIter paren
     nodeData.customIconId = readonly_n_custom_icon_id >> 1;
     gint64 richtxt_bold_foreground = sqlite3_column_int64(stmt, 4);
     nodeData.isBold = static_cast<bool>((richtxt_bold_foreground >> 1) & 0x01);
+    nodeData.sequence = sequence;
     if (static_cast<bool>((richtxt_bold_foreground >> 2) & 0x01))
     {
         char foregroundRgb24[8];
@@ -425,7 +466,7 @@ void CtStorageSqlite::_image_from_db(const gint64& nodeId, std::list<CtAnchoredW
         }
         else
         {
-            const Glib::ustring fileName = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 5));
+            fs::path fileName = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 5));
             const void* pBlob = sqlite3_column_blob(stmt, 4);
             const int blobSize = sqlite3_column_bytes(stmt, 4);
             const std::string rawBlob(reinterpret_cast<const char*>(pBlob), static_cast<size_t>(blobSize));
@@ -626,11 +667,11 @@ void CtStorageSqlite::_write_node_to_db(CtTreeIter* ct_tree_iter,
             xmlpp::Document xml_doc;
             xml_doc.create_root_node("node");
             CtStorageXmlHelper::save_buffer_no_widgets_to_xml(xml_doc.get_root_node(), ct_tree_iter->get_node_text_buffer(), start_offset, end_offset, 'n');
-            node_txt = Glib::locale_from_utf8(xml_doc.write_to_string());
+            node_txt = xml_doc.write_to_string();
         }
         else
         {
-            node_txt = Glib::locale_from_utf8(ct_tree_iter->get_node_text_buffer()->get_text());
+            node_txt = ct_tree_iter->get_node_text_buffer()->get_text();
         }
 
         // full node rewrite
@@ -640,9 +681,9 @@ void CtStorageSqlite::_write_node_to_db(CtTreeIter* ct_tree_iter,
             if (stmt.is_bad())
                 throw std::runtime_error(ERR_SQLITE_PREPV2 + sqlite3_errmsg(_pDb));
 
-            const std::string node_name = Glib::locale_from_utf8(ct_tree_iter->get_node_name());
+            const std::string node_name = ct_tree_iter->get_node_name();
             const std::string node_syntax = ct_tree_iter->get_node_syntax_highlighting();
-            const std::string node_tags = Glib::locale_from_utf8(ct_tree_iter->get_node_tags());
+            const std::string node_tags = ct_tree_iter->get_node_tags();
             sqlite3_bind_int64(stmt, 1, node_id);
             sqlite3_bind_text(stmt, 2, node_name.c_str(), node_name.size(), SQLITE_STATIC);
             sqlite3_bind_text(stmt, 3, node_txt.c_str(), node_txt.size(), SQLITE_STATIC);
@@ -685,9 +726,9 @@ void CtStorageSqlite::_write_node_to_db(CtTreeIter* ct_tree_iter,
             if (stmt.is_bad())
                 throw std::runtime_error(ERR_SQLITE_PREPV2 + sqlite3_errmsg(_pDb));
 
-            const std::string node_name = Glib::locale_from_utf8(ct_tree_iter->get_node_name());
+            const std::string node_name = ct_tree_iter->get_node_name();
             const std::string node_syntax = ct_tree_iter->get_node_syntax_highlighting();
-            const std::string node_tags = Glib::locale_from_utf8(ct_tree_iter->get_node_tags());
+            const std::string node_tags = ct_tree_iter->get_node_tags();
             sqlite3_bind_text(stmt, 1, node_name.c_str(), node_name.size(), SQLITE_STATIC);
             sqlite3_bind_text(stmt, 2, node_syntax.c_str(), node_syntax.size(), SQLITE_STATIC);
             sqlite3_bind_text(stmt, 3, node_tags.c_str(), node_tags.size(), SQLITE_STATIC);
@@ -747,22 +788,24 @@ void CtStorageSqlite::_exec_bind_int64(const char* sqlCmd, const gint64 bind_int
         throw std::runtime_error(ERR_SQLITE_STEP + sqlite3_errmsg(_pDb));
 }
 
-void CtStorageSqlite::import_nodes(const std::string& path)
+void CtStorageSqlite::import_nodes(const fs::path& path)
 {
     _open_db(path); // storage is temp so can just open db
+    if (!_check_database_integrity()) return; 
     // _fix_db_tables(); how to do it withough saving changes
     
-    std::function<void(gint64, Gtk::TreeIter)> add_node_func;
-    add_node_func = [this, &add_node_func](gint64 nodeId, Gtk::TreeIter parent_iter) {
-        auto node_iter = _pCtMainWin->get_tree_store().to_ct_tree_iter(_node_from_db(nodeId, parent_iter, _pCtMainWin->get_tree_store().node_id_get()));
+    std::function<void(gint64, const gint64, Gtk::TreeIter)> add_node_func;
+    add_node_func = [this, &add_node_func](gint64 nodeId, const gint64 sequence, Gtk::TreeIter parent_iter) {
+        auto node_iter = _pCtMainWin->get_tree_store().to_ct_tree_iter(_node_from_db(nodeId, sequence, parent_iter, _pCtMainWin->get_tree_store().node_id_get()));
         node_iter.pending_new_db_node();
+        gint64 child_sequence = 0;
         for (auto child_id : _get_children_node_ids_from_db(nodeId)) {
-            add_node_func(child_id, node_iter);
+            add_node_func(child_id, ++child_sequence, node_iter);
         }
     };
-
+    gint64 sequence = 0;
     for (auto node_id : _get_children_node_ids_from_db(0))
-        add_node_func(node_id, Gtk::TreeIter());
+        add_node_func(node_id, ++sequence, Gtk::TreeIter());
 
     _close_db();
 }

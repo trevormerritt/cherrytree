@@ -49,7 +49,8 @@ void CtActions::import_nodes_from_ct_file() noexcept
     {
         CtDialogs::file_select_args args(_pCtMainWin);
         args.curr_folder = _pCtMainWin->get_ct_config()->pickDirImport;
-        args.filter_pattern = CtConst::CT_FILE_EXTENSIONS_FILTER;
+        args.filter_name = _("CherryTree Document");
+        args.filter_pattern.push_back("*.ct*");
 
         auto fpath = CtDialogs::file_select_dialog(args);
         if (fpath.empty()) return; // No file selected
@@ -128,11 +129,20 @@ void CtActions::import_nodes_from_tomboy_directory() noexcept
 }
 
 
+void CtActions::import_nodes_from_keepnote_directory() noexcept {
+    try {
+        CtKeepnoteImport importer(_pCtMainWin->get_ct_config());
+        _import_from_dir(&importer, "");
+    } catch(const std::exception& e) {
+        spdlog::error("Exception caught while importing from keepnote: {}", e.what());
+    }
+}
+
 void CtActions::_import_from_file(CtImporterInterface* importer)
 {
     CtDialogs::file_select_args args(_pCtMainWin);
     args.curr_folder = _pCtMainWin->get_ct_config()->pickDirImport;
-    args.filter_mime = importer->file_mimes();
+    args.filter_name = importer->file_pattern_name();
     args.filter_pattern = importer->file_patterns();
     auto filepath = CtDialogs::file_select_dialog(args);
     if (filepath.empty()) return;
@@ -234,6 +244,7 @@ void CtActions::_create_imported_nodes(ct_imported_node* imported_nodes)
         node_data.syntax = imported_node->node_syntax;
         node_data.tsCreation = std::time(nullptr);
         node_data.tsLastSave = node_data.tsCreation;
+        node_data.sequence = -1;
         if (imported_node->has_content())
         {
             Glib::RefPtr<Gsv::Buffer> buffer = _pCtMainWin->get_new_text_buffer();

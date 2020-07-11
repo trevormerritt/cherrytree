@@ -88,7 +88,7 @@ xmlpp::Element *image_to_xml(xmlpp::Element *parent, const std::string &path, in
     
         // Download
         try {
-            std::string file_buffer = CtFileSystem::download_file(path);
+            std::string file_buffer = fs::download_file(path);
             if (!file_buffer.empty()) {
                 Glib::RefPtr<Gdk::PixbufLoader> pixbuf_loader = Gdk::PixbufLoader::create();
                 pixbuf_loader->write(reinterpret_cast<const guint8 *>(file_buffer.c_str()), file_buffer.size());
@@ -129,7 +129,7 @@ xmlpp::Element *image_to_xml(xmlpp::Element *parent, const std::string &path, in
     xmlpp::Element* image_element = parent->add_child("encoded_png");
     image_element->set_attribute("char_offset", std::to_string(char_offset));
     image_element->set_attribute(CtConst::TAG_JUSTIFICATION, justification);
-    image_element->set_attribute("link", path);
+    image_element->set_attribute("link", std::string(CtConst::LINK_TYPE_WEBS) + " " + path);
     image_element->add_child_text(encodedBlob);
     
     if (status_bar) status_bar->update_status("");
@@ -166,12 +166,12 @@ std::vector<std::pair<int, int>> CtImports::get_web_links_offsets_from_plain_tex
     return web_links;
 }
 
-std::unique_ptr<ct_imported_node> CtImports::traverse_dir(const std::string& dir, CtImporterInterface* importer)
+std::unique_ptr<ct_imported_node> CtImports::traverse_dir(const fs::path& dir, CtImporterInterface* importer)
 {
-    auto dir_node = std::make_unique<ct_imported_node>(dir, Glib::path_get_basename(dir));
-    for (const auto& dir_item: CtFileSystem::get_dir_entries(dir))
+    auto dir_node = std::make_unique<ct_imported_node>(dir, dir.filename().string());
+    for (const auto& dir_item: fs::get_dir_entries(dir))
     {
-        if (Glib::file_test(dir_item, Glib::FILE_TEST_IS_DIR))
+        if (fs::is_directory(dir_item))
         {
             if (auto node = traverse_dir(dir_item, importer))
               dir_node->children.emplace_back(std::move(node));
@@ -321,7 +321,7 @@ void CtHtml2Xml::handle_starttag(std::string_view tag, const char** atts)
                             attr_value = str::replace(attr_value, "pt", "");
                             // Can throw std::invalid_argument or std::out_of_range
                             int font_size = std::stoi(attr_value, nullptr); 
-                            if (font_size > 7 && font_size < 11)
+                            if (font_size > 0 && font_size < 11)
                                 _add_tag_style(CtConst::TAG_SCALE, CtConst::TAG_PROP_VAL_SMALL);
                             else if (font_size > 13 && font_size < 19)
                                 _add_tag_style(CtConst::TAG_SCALE, CtConst::TAG_PROP_VAL_H3);
@@ -341,6 +341,13 @@ void CtHtml2Xml::handle_starttag(std::string_view tag, const char** atts)
                     if (color != "")
                         _add_tag_style(CtConst::TAG_FOREGROUND, color);
                 }
+            }
+        }
+        else if (tag == "p")
+        {
+            for (auto& tag_attr: char2list_attrs(atts)) {
+                if (tag_attr.name == "align")
+                    _add_tag_style(CtConst::TAG_JUSTIFICATION, str::trim(Glib::ustring(tag_attr.value.begin()).lowercase()));
             }
         }
         else if (tag == CtConst::TAG_PROP_VAL_SUP || tag == CtConst::TAG_PROP_VAL_SUB)
@@ -454,6 +461,7 @@ void CtHtml2Xml::handle_endtag(std::string_view tag)
     else if (_state == ParserState::PARSING_BODY)
     {
         if (tag == "p") _rich_text_serialize(CtConst::CHAR_NEWLINE);
+        else if (tag == "div") _rich_text_serialize(CtConst::CHAR_NEWLINE);
         else if (tag == "pre") _html_pre_tag_open = false;
         else if (tag == CtConst::TAG_PROP_VAL_H1 || tag == CtConst::TAG_PROP_VAL_H2 || tag == CtConst::TAG_PROP_VAL_H3
                  || tag == CtConst::TAG_PROP_VAL_H4 || tag == CtConst::TAG_PROP_VAL_H5 || tag == CtConst::TAG_PROP_VAL_H6) {
@@ -630,7 +638,7 @@ void CtHtml2Xml::_insert_image(std::string img_path, std::string trailing_chars)
         xmlpp::Element* p_image_node = _slot_root->add_child("encoded_png");
         p_image_node->set_attribute("char_offset", std::to_string(_char_offset));
         p_image_node->set_attribute(CtConst::TAG_JUSTIFICATION, CtConst::TAG_PROP_VAL_LEFT);
-        p_image_node->set_attribute("link", img_path);
+        p_image_node->set_attribute("link", std::string(CtConst::LINK_TYPE_WEBS) + " " + img_path);
         p_image_node->add_child_text(encodedBlob);
     };
 
@@ -643,7 +651,7 @@ void CtHtml2Xml::_insert_image(std::string img_path, std::string trailing_chars)
 
     // trying to download
     try {
-        std::string file_buffer = CtFileSystem::download_file(img_path);
+        std::string file_buffer = fs::download_file(img_path);
         if (!file_buffer.empty()) {
             Glib::RefPtr<Gdk::PixbufLoader> pixbuf_loader = Gdk::PixbufLoader::create();
             pixbuf_loader->write((const guint8*)file_buffer.c_str(), file_buffer.size());
@@ -803,20 +811,20 @@ CtHtmlImport::CtHtmlImport(CtConfig* config) : _config(config)
 
 }
 
-std::unique_ptr<ct_imported_node> CtHtmlImport::import_file(const std::string& file)
+std::unique_ptr<ct_imported_node> CtHtmlImport::import_file(const fs::path& file)
 {
-    if (!str::endswith(file, ".html") && !str::endswith(file, ".htm"))
+    if (file.extension() != ".html" && file.extension() != ".htm")
         return nullptr;
 
     std::ifstream infile;
     infile.exceptions(std::ios_base::failbit);
-    infile.open(file);
+    infile.open(file.string());
     std::ostringstream ss;
     ss << infile.rdbuf();
 
-    auto imported_node = std::make_unique<ct_imported_node>(file, CtFileSystem::get_file_stem(file));
+    auto imported_node = std::make_unique<ct_imported_node>(file, file.stem().string());
     CtHtml2Xml html2xml(_config);
-    html2xml.set_local_dir(Glib::path_get_dirname(file));
+    html2xml.set_local_dir(file.parent_path().string());
     html2xml.set_outter_xml_doc(&imported_node->xml_content);
     html2xml.feed(ss.str());
 
@@ -831,10 +839,10 @@ CtTomboyImport::CtTomboyImport(CtConfig* config) : _config(config)
 
 }
 
-std::unique_ptr<ct_imported_node> CtTomboyImport::import_file(const std::string& file)
+std::unique_ptr<ct_imported_node> CtTomboyImport::import_file(const fs::path& file)
 {
     xmlpp::DomParser tomboy_doc;
-    try { tomboy_doc.parse_file(file);}
+    try { tomboy_doc.parse_file(file.string());}
     catch (std::exception& ex) {
         spdlog::error("CtTomboyImport: cannot parse xml file ({}): {}", ex.what(), file);
         return nullptr;
@@ -973,19 +981,18 @@ CtZimImport::CtZimImport(CtConfig* config): CtParser(config), CtTextParser(confi
 
 }
 
-std::unique_ptr<ct_imported_node> CtZimImport::import_file(const std::string& file)
+std::unique_ptr<ct_imported_node> CtZimImport::import_file(const fs::path& file)
 {
-    if (!str::endswith(file, ".txt"))
-        return nullptr;
+    if (file.extension() != ".txt") return nullptr;
 
-    _ensure_notebook_file_in_dir(Glib::path_get_dirname(file));
+    _ensure_notebook_file_in_dir(file.parent_path());
 
-    std::unique_ptr<ct_imported_node> node = std::make_unique<ct_imported_node>(file, CtFileSystem::get_file_stem(file));
+    std::unique_ptr<ct_imported_node> node = std::make_unique<ct_imported_node>(file, file.stem().string());
     _current_node = node.get();
     _current_element = node->xml_content.create_root_node("root")->add_child("slot");
     _current_element = _current_element->add_child("rich_text");
 
-    std::ifstream stream(file);
+    std::ifstream stream(file.string());
     feed(stream);
     return node;
 }
@@ -1144,11 +1151,11 @@ void CtZimImport::_parse_body_line(const std::string& line)
     _add_newline();
 }
 
-void CtZimImport::_ensure_notebook_file_in_dir(const std::string& dir)
+void CtZimImport::_ensure_notebook_file_in_dir(const fs::path& dir)
 {
     if (_has_notebook_file) return;
-    for (auto dir_item: CtFileSystem::get_dir_entries(dir))
-        if (Glib::path_get_basename(dir_item) == "notebook.zim")
+    for (auto dir_item: fs::get_dir_entries(dir))
+        if (dir_item.filename() == "notebook.zim")
         {
             _has_notebook_file = true;
             break;
@@ -1161,20 +1168,20 @@ void CtZimImport::_ensure_notebook_file_in_dir(const std::string& dir)
 
 
 
-std::unique_ptr<ct_imported_node> CtPlainTextImport::import_file(const std::string& file)
+std::unique_ptr<ct_imported_node> CtPlainTextImport::import_file(const fs::path& file)
 {
-    if (!CtMiscUtil::mime_type_contains(file, "text/"))
+    if (!CtMiscUtil::mime_type_contains(file.string(), "text/"))
         return nullptr;
 
     try
     {
         std::ifstream infile;
         infile.exceptions(std::ios_base::failbit);
-        infile.open(file);
+        infile.open(file.string());
         std::ostringstream data;
         data << infile.rdbuf();
 
-        std::unique_ptr<ct_imported_node> node = std::make_unique<ct_imported_node>(file, CtFileSystem::get_file_stem(file));
+        std::unique_ptr<ct_imported_node> node = std::make_unique<ct_imported_node>(file, file.stem().string());
         node->xml_content.create_root_node("root")->add_child("slot")->add_child("rich_text")->add_child_text(data.str());
         node->node_syntax = CtConst::PLAIN_TEXT_ID;
         return node;
@@ -1193,17 +1200,17 @@ CtMDImport::CtMDImport(CtConfig* config) : _parser(config)
 
 }
 
-std::unique_ptr<ct_imported_node> CtMDImport::import_file(const std::string& file)
+std::unique_ptr<ct_imported_node> CtMDImport::import_file(const fs::path& file)
 {
-    if (!str::endswith(file, ".md"))
+    if (file.extension() != ".md")
         return nullptr;
 
-    std::ifstream infile(file);
+    std::ifstream infile(file.string());
     if (!infile) throw std::runtime_error(fmt::format("CtMDImport: cannot open file, what: {}, file: {}", strerror(errno), file));
     _parser.wipe();
     _parser.feed(infile);
 
-    std::unique_ptr<ct_imported_node> node = std::make_unique<ct_imported_node>(file, CtFileSystem::get_file_stem(file));
+    std::unique_ptr<ct_imported_node> node = std::make_unique<ct_imported_node>(file, file.stem().string());
     node->xml_content.create_root_node_by_import(_parser.get_root_node());
 
     return node;
@@ -1216,16 +1223,62 @@ CtPandocImport::CtPandocImport(CtConfig* config): _config(config)
 
 }
 
-std::unique_ptr<ct_imported_node> CtPandocImport::import_file(const std::string& file)
+std::unique_ptr<ct_imported_node> CtPandocImport::import_file(const fs::path& file)
 {
     std::stringstream html_buff;
     CtPandoc::to_html(file, html_buff);
 
-    std::unique_ptr<ct_imported_node> node = std::make_unique<ct_imported_node>(file, CtFileSystem::get_file_stem(file));
+    std::unique_ptr<ct_imported_node> node = std::make_unique<ct_imported_node>(file, file.stem().string());
 
     CtHtml2Xml parser(_config);
     parser.set_outter_xml_doc(&node->xml_content);
     parser.feed(html_buff.str());
 
     return node;
+}
+
+std::unique_ptr<ct_imported_node> node_from_keepnote_dir(const fs::path& dir, CtConfig* config)  
+{
+    fs::path node_path = dir / "page.html";
+    if (!fs::exists(node_path)) throw CtImportException(fmt::format("Directory: <{}> does not contain a page.html file", dir));
+
+    std::ifstream infile;
+    infile.exceptions(std::ios::failbit);
+    infile.open(node_path.string());
+
+    std::ostringstream buff;
+    buff << infile.rdbuf();
+
+    CtHtml2Xml parser(config);
+    parser.feed(buff.str());
+
+    auto node = std::make_unique<ct_imported_node>(node_path, dir.stem().string());
+    node->xml_content.create_root_node_by_import(parser.doc().get_root_node());
+    
+    return node;
+}
+
+bool is_keepnote_ignored_name(const std::string& name) 
+{
+    for (const std::string& str : {"__TRASH__", "__NOTEBOOK__"}) {
+        if (str.find(name) != std::string::npos) return true;
+    }
+    return false;
+}
+
+std::unique_ptr<ct_imported_node> CtKeepnoteImport::import_file(const fs::path& file) 
+{
+    assert(fs::is_directory(file));
+
+    auto node = std::make_unique<ct_imported_node>(file, file.stem().string());
+    std::list<fs::path> files = fs::get_dir_entries(file);
+    for (const auto& path : files) {
+        if (fs::is_directory(path) && !is_keepnote_ignored_name(path.string())) {
+            // Valid node directory
+            node->children.emplace_back(node_from_keepnote_dir(path, _config));
+        }
+    }
+
+    return node;
+
 }

@@ -26,7 +26,7 @@ import sys
 import tempfile
 
 
-VERSION = "0.39.3"
+VERSION = "0.39.4"
 APP_NAME = "cherrytree"
 NEWER_VERSION_URL = "http://www.giuspen.com/software/version_cherrytree"
 IS_MAC_OS = False
@@ -70,6 +70,7 @@ try:
 except: HAS_APPINDICATOR = False
 XDG_CURRENT_DESKTOP = 'XDG_CURRENT_DESKTOP'
 HAS_SYSTRAY = not (XDG_CURRENT_DESKTOP in os.environ and os.environ[XDG_CURRENT_DESKTOP] == "Unity")
+DISABLE_SYSTRAY = IS_MAC_OS
 
 AVAILABLE_LANGS = ['default', 'cs', 'de', 'el', 'en', 'es', 'fi', 'fr', 'hy', 'it', 'ja', 'lt', 'nl', 'pl', 'pt_BR', 'ru', 'sl', 'sv', 'tr', 'uk', 'zh_CN']
 COLOR_48_LINK_WEBS = "#00008989ffff"
@@ -218,6 +219,7 @@ STR_KEY_RIGHT = "Right"
 STR_KEY_DQUOTE = "quotedbl"
 STR_KEY_SQUOTE = "apostrophe"
 STR_KEYS_CONTROL = ["Control_L", "Control_R"]
+STR_KEYS_LAYOUT_GROUP = ["ISO_Prev_Group", "ISO_Next_Group"]
 STR_PYGTK_222_REQUIRED = "PyGTK 2.22 required"
 
 CHERRY_RED = 'cherry_red'
