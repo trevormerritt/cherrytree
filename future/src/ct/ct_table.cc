@@ -194,7 +194,8 @@ void CtTable::to_csv(std::ostream& output) const {
 }
 
 
-std::unique_ptr<CtTable> CtTable::from_csv(std::istream& input, CtMainWin* main_win, const Glib::ustring& syntax_highlighting, int col_min, int col_max, int offset, const Glib::ustring& justification) {
+std::unique_ptr<CtTable> CtTable::from_csv(const std::string& csv_content, CtMainWin* main_win, const Glib::ustring& syntax_highlighting, int col_min, int col_max, int offset, const Glib::ustring& justification) {
+    std::stringstream input(csv_content);
     CtCSV::CtStringTable str_tbl = CtCSV::table_from_csv(input);
 
     CtTableMatrix tbl_matrix;
@@ -344,7 +345,7 @@ void CtTable::_on_populate_popup_header_cell(Gtk::Menu* menu, int row, int col)
     _pCtMainWin->get_ct_actions()->curr_table_anchor = this;
     _currentRow = row;
     _currentColumn = col;
-    _pCtMainWin->get_ct_actions()->getCtMainWin()->get_ct_menu().build_popup_menu(GTK_WIDGET(menu->gobj()), CtMenu::POPUP_MENU_TYPE::TableHeaderCell);
+    _pCtMainWin->get_ct_actions()->getCtMainWin()->get_ct_menu().build_popup_menu(GTK_WIDGET(menu->gobj()), CtMenu::POPUP_MENU_TYPE::TableCell);
 }
 
 void CtTable::_on_populate_popup_cell(Gtk::Menu* menu, int row, int col)

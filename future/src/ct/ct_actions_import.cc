@@ -27,7 +27,6 @@
 #include "ct_storage_xml.h"
 
 #include "ct_logging.h"
-#include <fstream>
 
 // Import a node from a html file
 void CtActions::import_node_from_html_file() noexcept 
@@ -138,7 +137,40 @@ void CtActions::import_nodes_from_keepnote_directory() noexcept {
     }
 }
 
-void CtActions::_import_from_file(CtImporterInterface* importer)
+void CtActions::import_nodes_from_mempad_file() noexcept {
+    try {
+        CtMempadImporter importer(_pCtMainWin->get_ct_config());
+        _import_from_file(&importer);
+    } catch(const std::exception& e) {
+        spdlog::error("Exception caught while importing from Mempad: {}", e.what());
+    }
+}
+
+void CtActions::import_nodes_from_leo_file() noexcept {
+    try {
+        CtLeoImporter importer;
+        _import_from_file(&importer);
+    } catch(const std::exception& e) {
+        spdlog::error("Exception caught while importing from Leo: {}", e.what());
+    }
+}
+
+void CtActions::import_nodes_from_rednotebook_html() noexcept {
+    try {
+        CtRedNotebookImporter importer{_pCtMainWin->get_ct_config()};
+        _import_from_file(&importer);
+    } catch(const std::exception& e) {
+        spdlog::error("Exception caught while importing from Leo: {}", e.what());
+    }
+}
+
+void CtActions::import_nodes_from_notecase_html() noexcept {
+    CtNoteCaseHTMLImporter importer{_pCtMainWin->get_ct_config()};
+    _import_from_file(&importer);
+}
+
+
+void CtActions::_import_from_file(CtImporterInterface* importer) noexcept
 {
     CtDialogs::file_select_args args(_pCtMainWin);
     args.curr_folder = _pCtMainWin->get_ct_config()->pickDirImport;
@@ -160,7 +192,7 @@ void CtActions::_import_from_file(CtImporterInterface* importer)
     }
 }
 
-void CtActions::_import_from_dir(CtImporterInterface* importer, const std::string& custom_dir)
+void CtActions::_import_from_dir(CtImporterInterface* importer, const std::string& custom_dir) noexcept
 {
     std::string start_dir = custom_dir.empty() ? _pCtMainWin->get_ct_config()->pickDirImport : custom_dir;
     std::string import_dir = CtDialogs::folder_select_dialog(start_dir, _pCtMainWin);
@@ -249,7 +281,7 @@ void CtActions::_create_imported_nodes(ct_imported_node* imported_nodes)
         {
             Glib::RefPtr<Gsv::Buffer> buffer = _pCtMainWin->get_new_text_buffer();
             buffer->begin_not_undoable_action();
-            for (xmlpp::Node* xml_slot : imported_node->xml_content.get_root_node()->get_children("slot"))
+            for (xmlpp::Node* xml_slot : imported_node->xml_content->get_root_node()->get_children("slot"))
                 for (xmlpp::Node* child: xml_slot->get_children())
                 {
                     Gtk::TextIter insert_iter = buffer->get_insert()->get_iter();

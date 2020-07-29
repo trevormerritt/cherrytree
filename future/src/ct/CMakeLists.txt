@@ -57,6 +57,7 @@ set(CT_SHARED_FILES
     ct_widgets.cc
     ct_parser_text.cc
     ct_parser_md.cc
+    ct_parser_html.cc
     ct_parser.cc
     ct_process.cc
     ct_filesystem.cc
@@ -90,3 +91,6 @@ elseif(WIN32)
 endif()
 
 set_target_properties(cherrytree PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+
+# install cherrytree
+install(TARGETS cherrytree RUNTIME DESTINATION bin)

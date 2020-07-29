@@ -1,12 +1,14 @@
-cmake_minimum_required(VERSION 3.13.2)
+cmake_minimum_required(VERSION 3.1)
 
 project(cherrytree)
-set(CT_VERSION "0.99.4")
+set(CT_VERSION "0.99.6")
 
-
-if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+# APPLE has issues with installing in /usr/bin because of SIP
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT AND APPLE)
+  set(CMAKE_INSTALL_PREFIX "/usr/local" CACHE PATH "..." FORCE)
+elseif(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set(CMAKE_INSTALL_PREFIX "/usr" CACHE PATH "..." FORCE)
-endif(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+endif()
 
 if(NOT PYTHON_EXEC)
   set(PYTHON_EXEC "python3")
@@ -148,9 +150,6 @@ if(USE_NLS)
   )
 endif()
 
-
-# install cherrytree
-install(TARGETS cherrytree RUNTIME DESTINATION bin)
 
 # set icon on macos
 if(APPLE)

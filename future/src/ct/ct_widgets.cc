@@ -22,6 +22,7 @@
  */
 
 #include "ct_widgets.h"
+#include "ct_parser.h"
 #include "ct_misc_utils.h"
 #include "ct_const.h"
 #include "ct_main_win.h"
@@ -140,21 +141,18 @@ void CtTreeView::set_cursor_safe(const Gtk::TreeIter& iter)
     set_cursor(get_model()->get_path(iter));
 }
 
-void CtTreeView::set_title_wrap_mode(int /*wrap_width*/)
+void CtTreeView::set_tree_node_name_wrap_width(int wrap_width)
 {
-    // todo: Gtk3 has broken wrap for TreeView
-    /*
     Gtk::TreeViewColumn* pTVCol0 = get_column(CtTreeView::TITLE_COL_NUM);
     std::vector<Gtk::CellRenderer*> cellRenderers0 = pTVCol0->get_cells();
-    if (cellRenderers0.size() > 1)
+    if (cellRenderers0.size() > 1) {
         if (Gtk::CellRendererText *pCellRendererText = dynamic_cast<Gtk::CellRendererText*>(cellRenderers0[1]))
         {
             pCellRendererText->property_wrap_mode().set_value(Pango::WRAP_CHAR);
             pCellRendererText->property_wrap_width().set_value(wrap_width);
         }
-    */
+    }
 }
-
 
 CtTextView::CtTextView(CtMainWin* pCtMainWin)
  : _pCtMainWin(pCtMainWin)
@@ -643,7 +641,8 @@ void CtTextView::cursor_and_tooltips_handler(int x, int y)
 
     if (CtList(_pCtMainWin, get_buffer()).is_list_todo_beginning(text_iter))
     {
-        get_window(Gtk::TEXT_WINDOW_TEXT)->set_cursor(Gdk::Cursor::create(Gdk::X_CURSOR));
+        get_window(Gtk::TEXT_WINDOW_TEXT)->set_cursor(Gdk::Cursor::create(Gdk::HAND2)); // Gdk::X_CURSOR doesn't work on Win
+        //get_window(Gtk::TEXT_WINDOW_TEXT)->set_cursor(Gdk::Cursor::create(Gdk::X_CURSOR));
         set_tooltip_text("");
         return;
     }

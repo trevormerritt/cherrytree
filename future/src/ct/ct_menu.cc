@@ -165,6 +165,8 @@ void CtMenu::init_actions(CtActions* pActions)
     _actions.push_back(CtMenuAction{fmt_cat, "fmt_justify_center", "ct_justify-center", _("Justify _Center"), None, _("Justify Center the Current Paragraph"), sigc::mem_fun(*pActions, &CtActions::apply_tag_justify_center)});
     _actions.push_back(CtMenuAction{fmt_cat, "fmt_justify_right", "ct_justify-right", _("Justify _Right"), None, _("Justify Right the Current Paragraph"), sigc::mem_fun(*pActions, &CtActions::apply_tag_justify_right)});
     _actions.push_back(CtMenuAction{fmt_cat, "fmt_justify_fill", "ct_justify-fill", _("Justify _Fill"), None, _("Justify Fill the Current Paragraph"), sigc::mem_fun(*pActions, &CtActions::apply_tag_justify_fill)});
+    _actions.push_back(CtMenuAction{fmt_cat, "fmt_indent", "ct_fmt-indent", _("Indent Paragraph"), KB_CONTROL+KB_SHIFT+"greater", _("Indent the Current Paragraph"), sigc::mem_fun(*pActions, &CtActions::apply_tag_indent)});
+    _actions.push_back(CtMenuAction{fmt_cat, "fmt_unindent", "ct_fmt-unindent", _("Unindent Paragraph"), KB_CONTROL+KB_SHIFT+"less", _("Unindent the Current Paragraph"), sigc::mem_fun(*pActions, &CtActions::reduce_tag_indent)});
     const char* tree_cat = _("Tree");
     _actions.push_back(CtMenuAction{tree_cat, "tree_add_node", "ct_tree-node-add", _("Add _Node"), KB_CONTROL+"N", _("Add a Node having the same Parent of the Selected Node"), sigc::mem_fun(*pActions, &CtActions::node_add)});
     _actions.push_back(CtMenuAction{tree_cat, "tree_add_subnode", "ct_tree-subnode-add", _("Add _SubNode"), KB_CONTROL+KB_SHIFT+"N", _("Add a Child Node to the Selected Node"), sigc::mem_fun(*pActions, &CtActions::node_child_add)});
@@ -206,7 +208,7 @@ void CtMenu::init_actions(CtActions* pActions)
     _actions.push_back(CtMenuAction{find_cat, "toggle_show_allmatches_dlg", "ct_find", _("Show _All Matches Dialog"), KB_CONTROL+KB_SHIFT+"A", _("Show Search All Matches Dialog"), sigc::mem_fun(*pActions, &CtActions::find_allmatchesdialog_restore)});
     const char* view_cat = _("View");
     _actions.push_back(CtMenuAction{view_cat, "toggle_show_tree", "ct_cherries", _("Show/Hide _Tree"), "F9", _("Toggle Show/Hide Tree"), sigc::mem_fun(*pActions, &CtActions::toggle_show_hide_tree)});
-    _actions.push_back(CtMenuAction{view_cat, "toggle_show_toolbar", "ct_toolbar", _("Show/Hide Tool_bar"), None, _("Toggle Show/Hide Toolbar"), sigc::mem_fun(*pActions, &CtActions::toggle_show_hide_toolbar)});
+    _actions.push_back(CtMenuAction{view_cat, "toggle_show_toolbar", "ct_toolbar", _("Show/Hide Tool_bar"), None, _("Toggle Show/Hide Toolbar"), sigc::mem_fun(*pActions, &CtActions::toggle_show_hide_toolbars)});
     _actions.push_back(CtMenuAction{view_cat, "toggle_show_node_name_head", "ct_node_name_header", _("Show/Hide Node Name _Header"), None, _("Toggle Show/Hide Node Name Header"), sigc::mem_fun(*pActions, &CtActions::toggle_show_hide_node_name_header)});
     _actions.push_back(CtMenuAction{view_cat, "toggle_focus_tree_text", "ct_go-jump", _("Toggle _Focus Tree/Text"), KB_CONTROL+"Tab", _("Toggle Focus Between Tree and Text"), sigc::mem_fun(*pActions, &CtActions::toggle_tree_text)});
     _actions.push_back(CtMenuAction{view_cat, "nodes_all_expand", "ct_zoom-in", _("E_xpand All Nodes"), KB_CONTROL+KB_SHIFT+"E", _("Expand All the Tree Nodes"), sigc::mem_fun(*pActions, &CtActions::nodes_expand_all)});
@@ -234,10 +236,10 @@ void CtMenu::init_actions(CtActions* pActions)
     _actions.push_back(CtMenuAction{import_cat, "import_keepnote", CtConst::STR_STOCK_CT_IMP, _("From _KeepNote Folder"), None, _("Add Nodes of a KeepNote Folder to the Current Tree"), sigc::mem_fun(*pActions, &CtActions::import_nodes_from_keepnote_directory) /* dad.nodes_add_from_keepnote_folder */});
     _actions.push_back(CtMenuAction{import_cat, "import_keynote", CtConst::STR_STOCK_CT_IMP, _("From K_eyNote File"), None, _("Add Nodes of a KeyNote File to the Current Tree"), sigc::signal<void>() /* dad.nodes_add_from_keynote_file */});
     _actions.push_back(CtMenuAction{import_cat, "import_knowit", CtConst::STR_STOCK_CT_IMP, _("From K_nowit File"), None, _("Add Nodes of a Knowit File to the Current Tree"), sigc::signal<void>() /* dad.nodes_add_from_knowit_file */});
-    _actions.push_back(CtMenuAction{import_cat, "import_leo", CtConst::STR_STOCK_CT_IMP, _("From _Leo File"), None, _("Add Nodes of a Leo File to the Current Tree"), sigc::signal<void>() /* dad.nodes_add_from_leo_file */});
-    _actions.push_back(CtMenuAction{import_cat, "import_mempad", CtConst::STR_STOCK_CT_IMP, _("From _Mempad File"), None, _("Add Nodes of a Mempad File to the Current Tree"), sigc::signal<void>() /* dad.nodes_add_from_mempad_file */});
-    _actions.push_back(CtMenuAction{import_cat, "import_notecase", CtConst::STR_STOCK_CT_IMP, _("From _NoteCase File"), None, _("Add Nodes of a NoteCase File to the Current Tree"), sigc::signal<void>() /* dad.nodes_add_from_notecase_file */});
-    _actions.push_back(CtMenuAction{import_cat, "import_rednotebook", CtConst::STR_STOCK_CT_IMP, _("From _RedNotebook Folder"), None, _("Add Nodes of a RedNotebook Folder to the Current Tree"), sigc::signal<void>() /* dad.nodes_add_from_rednotebook_folder */});
+    _actions.push_back(CtMenuAction{import_cat, "import_leo", CtConst::STR_STOCK_CT_IMP, _("From _Leo File"), None, _("Add Nodes of a Leo File to the Current Tree"), sigc::mem_fun(*pActions, &CtActions::import_nodes_from_leo_file) /* dad.nodes_add_from_leo_file */});
+    _actions.push_back(CtMenuAction{import_cat, "import_mempad", CtConst::STR_STOCK_CT_IMP, _("From _Mempad File"), None, _("Add Nodes of a Mempad File to the Current Tree"), sigc::mem_fun(*pActions, &CtActions::import_nodes_from_mempad_file) /* dad.nodes_add_from_mempad_file */});
+    _actions.push_back(CtMenuAction{import_cat, "import_notecase", CtConst::STR_STOCK_CT_IMP, _("From _NoteCase HTML File"), None, _("Add Nodes of a NoteCase HTML File to the Current Tree"), sigc::mem_fun(*pActions, &CtActions::import_nodes_from_notecase_html) /* dad.nodes_add_from_notecase_file */});
+    _actions.push_back(CtMenuAction{import_cat, "import_rednotebook", CtConst::STR_STOCK_CT_IMP, _("From _RedNotebook HTML"), None, _("Add Nodes of a RedNotebook HTML file to the Current Tree"), sigc::mem_fun(*pActions, &CtActions::import_nodes_from_rednotebook_html) /* dad.nodes_add_from_rednotebook_folder */});
     _actions.push_back(CtMenuAction{import_cat, "import_tomboy", CtConst::STR_STOCK_CT_IMP, _("From T_omboy Folder"), None, _("Add Nodes of a Tomboy Folder to the Current Tree"), sigc::mem_fun(*pActions, &CtActions::import_nodes_from_tomboy_directory)});
     _actions.push_back(CtMenuAction{import_cat, "import_treepad", CtConst::STR_STOCK_CT_IMP, _("From T_reepad Lite File"), None, _("Add Nodes of a Treepad Lite File to the Current Tree"), sigc::signal<void>() /* dad.nodes_add_from_treepad_file */});
     _actions.push_back(CtMenuAction{import_cat, "import_tuxcards", CtConst::STR_STOCK_CT_IMP, _("From _TuxCards File"), None, _("Add Nodes of a TuxCards File to the Current Tree"), sigc::signal<void>() /* dad.nodes_add_from_tuxcards_file */});
@@ -376,13 +378,20 @@ Gtk::AccelLabel* CtMenu::get_accel_label(Gtk::MenuItem* item)
     return nullptr;
 }
 
-Gtk::Toolbar* CtMenu::build_toolbar(Gtk::MenuToolButton*& pRecentDocsMenuToolButton)
+std::vector<Gtk::Toolbar*> CtMenu::build_toolbars(Gtk::MenuToolButton*& pRecentDocsMenuToolButton)
 {
-    Gtk::Toolbar* pToolbar{nullptr};
-    _rGtkBuilder->add_from_string(_get_ui_str_toolbar());
-    _rGtkBuilder->get_widget("ToolBar", pToolbar);
-    _rGtkBuilder->get_widget("RecentDocs", pRecentDocsMenuToolButton);
-    return pToolbar;
+    pRecentDocsMenuToolButton = nullptr;
+    std::vector<Gtk::Toolbar*> toolbars;
+    for (const auto& toolbar_str: _get_ui_str_toolbars())
+    {
+        Gtk::Toolbar* pToolbar = nullptr;
+        _rGtkBuilder->add_from_string(toolbar_str);
+        _rGtkBuilder->get_widget("ToolBar" + std::to_string(toolbars.size()), pToolbar);
+        toolbars.push_back(pToolbar);
+        if (!pRecentDocsMenuToolButton)
+            _rGtkBuilder->get_widget("RecentDocs", pRecentDocsMenuToolButton);
+    }
+    return toolbars;
 }
 
 Gtk::MenuBar* CtMenu::build_menubar()
@@ -466,7 +475,7 @@ Gtk::Menu* CtMenu::build_popup_menu(GtkWidget* pMenu,  POPUP_MENU_TYPE popupMenu
         _add_menu_item(pMenu, find_action("link_delete"));
         return Glib::wrap(GTK_MENU(pMenu));
     }
-    case CtMenu::POPUP_MENU_TYPE::TableHeaderCell:
+    case CtMenu::POPUP_MENU_TYPE::TableCell:
     {
         _add_menu_item(pMenu, find_action("table_cut"));
         _add_menu_item(pMenu, find_action("table_copy"));
@@ -477,16 +486,6 @@ Gtk::Menu* CtMenu::build_popup_menu(GtkWidget* pMenu,  POPUP_MENU_TYPE popupMenu
         _add_separator(pMenu);
         _add_menu_item(pMenu, find_action("table_column_left"));
         _add_menu_item(pMenu, find_action("table_column_right"));
-        _add_separator(pMenu);
-        _add_menu_item(pMenu, find_action("table_edit_properties"));
-        _add_menu_item(pMenu, find_action("table_export"));
-        return Glib::wrap(GTK_MENU(pMenu));
-    }
-    case CtMenu::POPUP_MENU_TYPE::TableCell:
-    {
-        _add_menu_item(pMenu, find_action("table_cut"));
-        _add_menu_item(pMenu, find_action("table_copy"));
-        _add_menu_item(pMenu, find_action("table_delete"));
         _add_separator(pMenu);
         _add_menu_item(pMenu, find_action("table_row_add"));
         _add_menu_item(pMenu, find_action("table_row_cut"));
@@ -716,42 +715,62 @@ GtkWidget* CtMenu::_add_separator(GtkWidget* pMenu)
     return pSeparatorItem->gobj();
 }
 
-std::string CtMenu::_get_ui_str_toolbar()
-{
-    std::vector<std::string> vecToolbarElements = str::split(_pCtConfig->toolbarUiList, ",");
-    std::string toolbarUIStr;
-    for (const std::string& element : vecToolbarElements)
+std::vector<std::string> CtMenu::_get_ui_str_toolbars()
+{   
+    auto generate_ui = [&](size_t id, const std::vector<std::string>& items)
     {
-        if (element == CtConst::TAG_SEPARATOR)
+        std::string str;
+        for (const std::string& element: items)
         {
-            toolbarUIStr += "<child><object class='GtkSeparatorToolItem'/></child>";
-        }
-        else
-        {
-            const bool isOpenRecent{element == CtConst::CHAR_STAR};
-            CtMenuAction const* pAction = isOpenRecent ? find_action("ct_open_file") : find_action(element);
-            if (pAction)
+            if (element == CtConst::TAG_SEPARATOR)
             {
-                if (isOpenRecent) toolbarUIStr += "<child><object class='GtkMenuToolButton' id='RecentDocs'>";
-                else toolbarUIStr += "<child><object class='GtkToolButton'>";
-                toolbarUIStr += "<property name='action-name'>win." + pAction->id + "</property>"; // 'win.' is a default action group in Window
-                toolbarUIStr += "<property name='icon-name'>" + pAction->image + "</property>";
-                toolbarUIStr += "<property name='label'>" + pAction->name + "</property>";
-                toolbarUIStr += "<property name='tooltip-text'>" + pAction->desc + "</property>";
-                toolbarUIStr += "<property name='visible'>True</property>";
-                toolbarUIStr += "<property name='use_underline'>True</property>";
-                toolbarUIStr += "</object></child>";
+                str += "<child><object class='GtkSeparatorToolItem'/></child>";
+            }
+            else
+            {
+                const bool isOpenRecent{element == CtConst::CHAR_STAR};
+                CtMenuAction const* pAction = isOpenRecent ? find_action("ct_open_file") : find_action(element);
+                if (pAction)
+                {
+                    if (isOpenRecent) str += "<child><object class='GtkMenuToolButton' id='RecentDocs'>";
+                    else str += "<child><object class='GtkToolButton'>";
+                    str += "<property name='action-name'>win." + pAction->id + "</property>"; // 'win.' is a default action group in Window
+                    str += "<property name='icon-name'>" + pAction->image + "</property>";
+                    str += "<property name='label'>" + pAction->name + "</property>";
+                    str += "<property name='tooltip-text'>" + pAction->desc + "</property>";
+                    str += "<property name='visible'>True</property>";
+                    str += "<property name='use_underline'>True</property>";
+                    str += "</object></child>";
+                }
             }
         }
-    }
-    toolbarUIStr = "<interface><object class='GtkToolbar' id='ToolBar'>"
-            "<property name='visible'>True</property>"
-            "<property name='can_focus'>False</property>"
-            + toolbarUIStr +
-            "</object></interface>";
-    return toolbarUIStr;
-}
+        str = "<interface><object class='GtkToolbar' id='ToolBar" + std::to_string(id) + "'>"
+                "<property name='visible'>True</property>"
+                "<property name='can_focus'>False</property>"
+                + str +
+                "</object></interface>";
+        return str;
+    };
 
+    std::vector<std::string> toolbarUIstr;
+    std::vector<std::string> vecToolbarElements = str::split(_pCtConfig->toolbarUiList, ",");
+    std::vector<std::string> toolbar_accumulator;
+    for (const std::string& element : vecToolbarElements) {
+        if (element != CtConst::TOOLBAR_SPLIT)
+            toolbar_accumulator.push_back(element);
+        else if (!toolbar_accumulator.empty()) {
+            toolbarUIstr.push_back(generate_ui(toolbarUIstr.size(), toolbar_accumulator));
+            toolbar_accumulator.clear();
+        }
+    }
+
+    if (!toolbar_accumulator.empty()) {
+        toolbarUIstr.push_back(generate_ui(toolbarUIstr.size(), toolbar_accumulator));
+        toolbar_accumulator.clear();
+    }
+
+    return toolbarUIstr;
+}
 
 const char* CtMenu::_get_ui_str_menu()
 {
@@ -837,6 +856,9 @@ const char* CtMenu::_get_ui_str_menu()
     <menuitem action='handle_bull_list'/>
     <menuitem action='handle_num_list'/>
     <menuitem action='handle_todo_list'/>
+    <separator/>
+    <menuitem action='fmt_indent'/>
+    <menuitem action='fmt_unindent'/>
     <separator/>
     <menuitem action='fmt_justify_left'/>
     <menuitem action='fmt_justify_center'/>
@@ -1008,76 +1030,78 @@ const char* CtMenu::_get_popup_menu_ui_str_text()
   <menuitem action='paste_plain'/>
   <separator/>
   <menu _name='For_matting' image='ct_fmt-txt'>
-      <menuitem action='fmt_latest'/>
-      <menuitem action='fmt_rm'/>
-      <separator/>
-      <menuitem action='fmt_color_fg'/>
-      <menuitem action='fmt_color_bg'/>
-      <menuitem action='fmt_bold'/>
-      <menuitem action='fmt_italic'/>
-      <menuitem action='fmt_underline'/>
-      <menuitem action='fmt_strikethrough'/>
-      <menuitem action='fmt_h1'/>
-      <menuitem action='fmt_h2'/>
-      <menuitem action='fmt_h3'/>
-      <menuitem action='fmt_small'/>
-      <menuitem action='fmt_superscript'/>
-      <menuitem action='fmt_subscript'/>
-      <menuitem action='fmt_monospace'/>
-  </menu>
-  <menu _name='_Justify' image='ct_justify-center'>
-      <menuitem action='fmt_justify_left'/>
-      <menuitem action='fmt_justify_center'/>
-      <menuitem action='fmt_justify_right'/>
-      <menuitem action='fmt_justify_fill'/>
+    <menuitem action='fmt_latest'/>
+    <menuitem action='fmt_rm'/>
+    <separator/>
+    <menuitem action='fmt_color_fg'/>
+    <menuitem action='fmt_color_bg'/>
+    <menuitem action='fmt_bold'/>
+    <menuitem action='fmt_italic'/>
+    <menuitem action='fmt_underline'/>
+    <menuitem action='fmt_strikethrough'/>
+    <menuitem action='fmt_h1'/>
+    <menuitem action='fmt_h2'/>
+    <menuitem action='fmt_h3'/>
+    <menuitem action='fmt_small'/>
+    <menuitem action='fmt_superscript'/>
+    <menuitem action='fmt_subscript'/>
+    <menuitem action='fmt_monospace'/>
   </menu>
   <menu _name='_List' image='ct_list_bulleted'>
-      <menuitem action='handle_bull_list'/>
-      <menuitem action='handle_num_list'/>
-      <menuitem action='handle_todo_list'/>
+    <menuitem action='handle_bull_list'/>
+    <menuitem action='handle_num_list'/>
+    <menuitem action='handle_todo_list'/>
+  </menu>
+  <menuitem action='fmt_indent'/>
+  <menuitem action='fmt_unindent'/>
+  <menu _name='_Justify' image='ct_justify-center'>
+    <menuitem action='fmt_justify_left'/>
+    <menuitem action='fmt_justify_center'/>
+    <menuitem action='fmt_justify_right'/>
+    <menuitem action='fmt_justify_fill'/>
   </menu>
   <separator/>
   <menu _name='_Insert' image='ct_insert'>
-      <menuitem action='handle_image'/>
-      <menuitem action='handle_table'/>
-      <menuitem action='handle_codebox'/>
-      <menuitem action='handle_embfile'/>
-      <menuitem action='handle_link'/>
-      <menuitem action='handle_anchor'/>
-      <menuitem action='insert_toc'/>
-      <menuitem action='insert_timestamp'/>
-      <menuitem action='insert_horiz_rule'/>
+    <menuitem action='handle_image'/>
+    <menuitem action='handle_table'/>
+    <menuitem action='handle_codebox'/>
+    <menuitem action='handle_embfile'/>
+    <menuitem action='handle_link'/>
+    <menuitem action='handle_anchor'/>
+    <menuitem action='insert_toc'/>
+    <menuitem action='insert_timestamp'/>
+    <menuitem action='insert_horiz_rule'/>
   </menu>
   <menu _name='C_hange Case' image='ct_case_toggle'>
-      <menuitem action='case_down'/>
-      <menuitem action='case_up'/>
-      <menuitem action='case_tggl'/>
+    <menuitem action='case_down'/>
+    <menuitem action='case_up'/>
+    <menuitem action='case_tggl'/>
   </menu>
   <menu _name='_Row' image='ct_edit'>
-      <menuitem action='cut_row'/>
-      <menuitem action='copy_row'/>
-      <menuitem action='del_row'/>
-      <menuitem action='dup_row'/>
-      <menuitem action='mv_up_row'/>
-      <menuitem action='mv_down_row'/>
+    <menuitem action='cut_row'/>
+    <menuitem action='copy_row'/>
+    <menuitem action='del_row'/>
+    <menuitem action='dup_row'/>
+    <menuitem action='mv_up_row'/>
+    <menuitem action='mv_down_row'/>
   </menu>
   <menuitem action='strip_trail_spaces'/>
   <separator/>
   <menu _name='_Search' image='ct_find'>
-      <menuitem action='find_in_node'/>
-      <menuitem action='find_in_allnodes'/>
-      <menuitem action='find_in_node_n_sub'/>
-      <menuitem action='find_in_node_names'/>
-      <menuitem action='find_iter_fw'/>
-      <menuitem action='find_iter_bw'/>
+    <menuitem action='find_in_node'/>
+    <menuitem action='find_in_allnodes'/>
+    <menuitem action='find_in_node_n_sub'/>
+    <menuitem action='find_in_node_names'/>
+    <menuitem action='find_iter_fw'/>
+    <menuitem action='find_iter_bw'/>
   </menu>
   <menu _name='_Replace' image='ct_find_replace'>
-      <menuitem action='replace_in_node'/>
-      <menuitem action='replace_in_allnodes'/>
-      <menuitem action='replace_in_node_n_sub'/>
-      <menuitem action='replace_in_node_names'/>
-      <menuitem action='replace_iter_fw'/>
-      <menuitem action='find_iter_bw'/>
+    <menuitem action='replace_in_node'/>
+    <menuitem action='replace_in_allnodes'/>
+    <menuitem action='replace_in_node_n_sub'/>
+    <menuitem action='replace_in_node_names'/>
+    <menuitem action='replace_iter_fw'/>
+    <menuitem action='find_iter_bw'/>
   </menu>
 </popup>
     )MARKUP";
@@ -1093,58 +1117,57 @@ const char* CtMenu::_get_popup_menu_ui_str_code()
   <separator/>
   <menuitem action='exec_code'/>
   <menu _name='_Insert' image='ct_insert'>
-      <menuitem action='insert_timestamp'/>
-      <menuitem action='insert_horiz_rule'/>
+    <menuitem action='insert_timestamp'/>
+    <menuitem action='insert_horiz_rule'/>
   </menu>
   <menuitem action='strip_trail_spaces'/>
   <menu _name='C_hange Case' image='ct_case_toggle'>
-      <menuitem action='case_down'/>
-      <menuitem action='case_up'/>
-      <menuitem action='case_tggl'/>
+    <menuitem action='case_down'/>
+    <menuitem action='case_up'/>
+    <menuitem action='case_tggl'/>
   </menu>
   <menu _name='_Row' image='ct_edit'>
-      <menuitem action='cut_row'/>
-      <menuitem action='copy_row'/>
-      <menuitem action='del_row'/>
-      <menuitem action='dup_row'/>
-      <menuitem action='mv_up_row'/>
-      <menuitem action='mv_down_row'/>
+    <menuitem action='cut_row'/>
+    <menuitem action='copy_row'/>
+    <menuitem action='del_row'/>
+    <menuitem action='dup_row'/>
+    <menuitem action='mv_up_row'/>
+    <menuitem action='mv_down_row'/>
   </menu>
   <separator/>
   <menu _name='_Search' image='ct_find'>
-      <menuitem action='find_in_node'/>
-      <menuitem action='find_in_allnodes'/>
-      <menuitem action='find_in_node_n_sub'/>
-      <menuitem action='find_in_node_names'/>
-      <menuitem action='find_iter_fw'/>
-      <menuitem action='find_iter_bw'/>
+    <menuitem action='find_in_node'/>
+    <menuitem action='find_in_allnodes'/>
+    <menuitem action='find_in_node_n_sub'/>
+    <menuitem action='find_in_node_names'/>
+    <menuitem action='find_iter_fw'/>
+    <menuitem action='find_iter_bw'/>
   </menu>
   <menu _name='_Replace' image='ct_find_replace'>
-      <menuitem action='replace_in_node'/>
-      <menuitem action='replace_in_allnodes'/>
-      <menuitem action='replace_in_node_n_sub'/>
-      <menuitem action='replace_in_node_names'/>
-      <menuitem action='replace_iter_fw'/>
-      <menuitem action='find_iter_bw'/>
+    <menuitem action='replace_in_node'/>
+    <menuitem action='replace_in_allnodes'/>
+    <menuitem action='replace_in_node_n_sub'/>
+    <menuitem action='replace_in_node_names'/>
+    <menuitem action='replace_iter_fw'/>
+    <menuitem action='find_iter_bw'/>
   </menu>
 </popup>
     )MARKUP";
 }
 
-
 const char* CtMenu::_get_popup_menu_ui_str_image()
 {
     return R"MARKUP(
 <popup>
-   <menuitem action='img_cut'/>
-   <menuitem action='img_copy'/>
-   <menuitem action='img_del'/>
-   <separator/>
-   <menuitem action='img_edit'/>
-   <menuitem action='img_save'/>
-   <separator/>
-   <menuitem action='img_link_edit'/>
-   <menuitem action='img_link_dismiss'/>
+  <menuitem action='img_cut'/>
+  <menuitem action='img_copy'/>
+  <menuitem action='img_del'/>
+  <separator/>
+  <menuitem action='img_edit'/>
+  <menuitem action='img_save'/>
+  <separator/>
+  <menuitem action='img_link_edit'/>
+  <menuitem action='img_link_dismiss'/>
 </popup>
     )MARKUP";
 }

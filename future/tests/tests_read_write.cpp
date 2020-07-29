@@ -29,7 +29,10 @@
 class TestCtApp : public CtApp
 {
 public:
-    TestCtApp() : CtApp{} {}
+    TestCtApp(const std::vector<std::string>& vec_args)
+     : CtApp{},
+       _vec_args{vec_args}
+    {}
 
     struct ExpectedTag {
         Glib::ustring text_slot;
@@ -38,19 +41,33 @@ public:
     };
 
 private:
-    void on_open(const Gio::Application::type_vec_files& files, const Glib::ustring& hint) override;
+    void on_open(const Gio::Application::type_vec_files& files, const Glib::ustring& hint) final;
+    void on_activate() final;
 
+    void _run_test(const fs::path doc_filepath_from, const fs::path doc_filepath_to);
     void _assert_tree_data(CtMainWin* pWin);
     void _assert_node_text(CtTreeIter& ctTreeIter, const Glib::ustring& expectedText);
     void _process_rich_text_buffer(std::list<ExpectedTag>& expectedTags, Glib::RefPtr<Gsv::Buffer> rTextBuffer);
+
+    const std::vector<std::string>& _vec_args;
 };
 
-void TestCtApp::on_open(const Gio::Application::type_vec_files& files, const Glib::ustring& hint)
+void TestCtApp::on_activate()
+{
+    CHECK_EQUAL(4, _vec_args.size());
+    // NOTE: on windows/msys2 unit tests the passed arguments do not work so we end up here
+    _run_test(_vec_args.at(1), _vec_args.at(3));
+}
+
+void TestCtApp::on_open(const Gio::Application::type_vec_files& files, const Glib::ustring& /*hint*/)
 {
     CHECK_EQUAL(1, files.size());
-    const fs::path doc_filepath_from{files.front()->get_path()};
     // NOTE: we use the trick of the [-t export_to_txt_dir] argument to pass the target file type
-    const fs::path doc_filepath_to{_export_to_txt_dir};
+    _run_test(files.front()->get_path(), _export_to_txt_dir);
+}
+
+void TestCtApp::_run_test(const fs::path doc_filepath_from, const fs::path doc_filepath_to)
+{
     const CtDocEncrypt docEncrypt_from = fs::get_doc_encrypt(doc_filepath_from);
     const CtDocEncrypt docEncrypt_to = fs::get_doc_encrypt(doc_filepath_to);
 
@@ -473,7 +490,10 @@ void TestCtApp::_assert_tree_data(CtMainWin* pWin)
                     STRCMP_EQUAL(CtConst::TAG_PROP_VAL_LEFT, pAnchWidget->getJustification().c_str());
                     auto pImagePng = dynamic_cast<CtImagePng*>(pAnchWidget);
                     CHECK(pImagePng);
-                    // TODO
+                    STRCMP_EQUAL("webs http://www.ansa.it", pImagePng->get_link().c_str());
+                    static const std::string embedded_png = Glib::Base64::decode("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");
+                    CHECK_EQUAL(embedded_png.size(), pImagePng->get_raw_blob().size());
+                    MEMCMP_EQUAL(embedded_png.c_str(), pImagePng->get_raw_blob().c_str(), embedded_png.size());
                 } break;
                 case CtAnchWidgType::ImageAnchor: {
                     CHECK_EQUAL(39, pAnchWidget->getOffset());
@@ -487,7 +507,10 @@ void TestCtApp::_assert_tree_data(CtMainWin* pWin)
                     STRCMP_EQUAL(CtConst::TAG_PROP_VAL_LEFT, pAnchWidget->getJustification().c_str());
                     auto pImageEmbFile = dynamic_cast<CtImageEmbFile*>(pAnchWidget);
                     CHECK(pImageEmbFile);
-                    // TODO
+                    STRCMP_EQUAL("йцукенгшщз.txt", pImageEmbFile->get_file_name().c_str());
+                    static const std::string embedded_file = Glib::Base64::decode("0LnRhtGD0LrQtdC90LPRiNGJ0LcK");
+                    CHECK_EQUAL(embedded_file.size(), pImageEmbFile->get_raw_blob().size());
+                    MEMCMP_EQUAL(embedded_file.c_str(), pImageEmbFile->get_raw_blob().c_str(), embedded_file.size());
                 } break;
             }
         }
@@ -498,7 +521,7 @@ TEST_GROUP(CtDocRWGroup)
 {
 };
 
-#ifndef __APPLE__ // TestCtApp causes crash on macos
+#if !defined(__APPLE__) // TestCtApp causes crash on macos
 
 TEST(CtDocRWGroup, CtDocRW_all_variants)
 {
@@ -506,7 +529,7 @@ TEST(CtDocRWGroup, CtDocRW_all_variants)
         for (const std::string& out_doc_path : UT::testAllDocTypes) {
             const std::vector<std::string> vec_args{"cherrytree", in_doc_path, "-t", out_doc_path};
             gchar** pp_args = CtStrUtil::vector_to_array(vec_args);
-            TestCtApp testCtApp{};
+            TestCtApp testCtApp{vec_args};
             testCtApp.run(vec_args.size(), pp_args);
             g_strfreev(pp_args);
         }

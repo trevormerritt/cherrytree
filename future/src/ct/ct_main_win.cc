@@ -87,10 +87,11 @@ CtMainWin::CtMainWin(bool             no_gui,
     _pSpecialCharsSubmenu = CtMenu::find_menu_item(_pMenuBar, "SpecialCharsMenu");
     _pMenuBar->show_all();
     gtk_window_add_accel_group(GTK_WINDOW(gobj()), _uCtMenu->default_accel_group());
-    _pToolbar = _uCtMenu->build_toolbar(_pRecentDocsMenuToolButton);
+    _pToolbars = _uCtMenu->build_toolbars(_pRecentDocsMenuToolButton);
 
     _vboxMain.pack_start(*_pMenuBar, false, false);
-    _vboxMain.pack_start(*_pToolbar, false, false);
+    for (auto pToolbar: _pToolbars)
+        _vboxMain.pack_start(*pToolbar, false, false);
     _vboxMain.pack_start(_hPaned);
     _vboxMain.pack_start(_init_status_bar(), false, false);
     _vboxMain.show_all();
@@ -231,7 +232,12 @@ const std::string CtMainWin::get_text_tag_name_exist_or_create(const std::string
     {
         bool identified{true};
         rTextTag = Gtk::TextTag::create(tagName);
-        if (CtConst::TAG_WEIGHT == propertyName and CtConst::TAG_PROP_VAL_HEAVY == propertyValue)
+        if (CtConst::TAG_INDENT == propertyName)
+        {
+            rTextTag->property_left_margin() = CtConst::INDENT_MARGIN * std::stoi(propertyValue);
+            rTextTag->property_indent() = 0;
+        }
+        else if (CtConst::TAG_WEIGHT == propertyName and CtConst::TAG_PROP_VAL_HEAVY == propertyValue)
         {
             rTextTag->property_weight() = PANGO_WEIGHT_HEAVY;
         }
@@ -485,7 +491,7 @@ void CtMainWin::_reset_CtTreestore_CtTreeview()
 
     _uCtTreestore.reset(new CtTreeStore(this));
     _uCtTreestore->tree_view_connect(_uCtTreeview.get());
-    _uCtTreeview->set_title_wrap_mode(get_ct_config()->cherryWrapWidth);
+    _uCtTreeview->set_tree_node_name_wrap_width(get_ct_config()->cherryWrapWidth);
     _uCtTreeview->get_column(CtTreeView::AUX_ICON_COL_NUM)->set_visible(!get_ct_config()->auxIconHide);
 
     _tree_just_auto_expanded = false;
@@ -521,7 +527,7 @@ void CtMainWin::config_apply()
     _ctWinHeader.lockIcon.hide();
     _ctWinHeader.bookmarkIcon.hide();
 
-    menu_rebuild_toolbar(false);
+    menu_rebuild_toolbars(false);
 
     _ctStatusBar.progressBar.hide();
     _ctStatusBar.stopButton.hide();
@@ -554,17 +560,17 @@ void CtMainWin::config_update_data_from_curr_status()
 
 void CtMainWin::update_theme()
 { 
-    auto font_to_string = [](Pango::FontDescription font)
+    auto font_to_string = [](Pango::FontDescription font, std::string fallbackFont)
     {
-        return " { font-family: " + font.get_family() +
-               "; font-size: " + std::to_string(font.get_size()/Pango::SCALE) +
-               "pt; } ";
+        // add fallback font (to help with font on Win; on Linux, font works ok without explicit fallback
+        return " { font-family: \"" + font.get_family() + "\",\"" + fallbackFont +  "\";"
+                   "font-size: " + std::to_string(font.get_size()/Pango::SCALE) + "pt; } ";
     };
 
-    std::string rtFont = font_to_string(Pango::FontDescription(_pCtConfig->rtFont));
-    std::string plFont = font_to_string(Pango::FontDescription(_pCtConfig->ptFont));
-    std::string codeFont = font_to_string(Pango::FontDescription(_pCtConfig->codeFont));
-    std::string treeFont = font_to_string(Pango::FontDescription(_pCtConfig->treeFont));
+    std::string rtFont = font_to_string(Pango::FontDescription(_pCtConfig->rtFont), _pCtConfig->fallbackFontFamily);
+    std::string plFont = font_to_string(Pango::FontDescription(_pCtConfig->ptFont), _pCtConfig->fallbackFontFamily);
+    std::string codeFont = font_to_string(Pango::FontDescription(_pCtConfig->codeFont), "monospace");
+    std::string treeFont = font_to_string(Pango::FontDescription(_pCtConfig->treeFont), _pCtConfig->fallbackFontFamily);
 
     std::string font_css;
     font_css += ".ct-view-panel.ct-view-rich-text" + rtFont;
@@ -801,21 +807,27 @@ void CtMainWin::menu_set_visible_exit_app(bool visible)
     CtMenu::find_menu_item(_pMenuBar, "exit_app")->set_visible(visible);
 }
 
-void CtMainWin::menu_rebuild_toolbar(bool new_toolbar)
+void CtMainWin::menu_rebuild_toolbars(bool new_toolbar)
 {
     if (new_toolbar)
     {
-        _vboxMain.remove(*_pToolbar);
-        _pToolbar = _uCtMenu->build_toolbar(_pRecentDocsMenuToolButton);
-        _vboxMain.pack_start(*_pToolbar, false, false);
-        _vboxMain.reorder_child(*_pToolbar, 1);
+        for (auto pToolbar: _pToolbars)
+            _vboxMain.remove(*pToolbar);
+        _pToolbars = _uCtMenu->build_toolbars(_pRecentDocsMenuToolButton);
+        for (auto toolbar = _pToolbars.rbegin(); toolbar != _pToolbars.rend(); ++toolbar)
+        {
+            _vboxMain.pack_start(*(*toolbar), false, false);
+            _vboxMain.reorder_child(*(*toolbar), 1);
+        }
         menu_set_items_recent_documents();
-        _pToolbar->show_all();
+        for (auto pToolbar: _pToolbars)
+            pToolbar->show_all();
     }
 
-    show_hide_toolbar(_pCtConfig->toolbarVisible);
-    _pToolbar->set_toolbar_style(Gtk::ToolbarStyle::TOOLBAR_ICONS);
-    set_toolbar_icon_size(_pCtConfig->toolbarIconSize);
+    show_hide_toolbars(_pCtConfig->toolbarVisible);
+    for (auto pToolbar: _pToolbars)
+        pToolbar->set_toolbar_style(Gtk::ToolbarStyle::TOOLBAR_ICONS);
+    set_toolbars_icon_size(_pCtConfig->toolbarIconSize);
 }
 
 
@@ -965,7 +977,7 @@ bool CtMainWin::file_save_ask_user()
     if (get_file_save_needed())
     {
         const CtYesNoCancel yesNoCancel = [this]() {
-            if (_pCtConfig->autosaveOnQuit)
+            if (_pCtConfig->autosaveOnQuit && !_uCtStorage->get_file_path().empty())
                 return CtYesNoCancel::Yes;
             set_visible(true);   // window could be hidden
             return CtDialogs::exit_save_dialog(*this);
@@ -1550,10 +1562,10 @@ bool CtMainWin::_on_treeview_scroll_event(GdkEventScroll* event)
 {
     if (!(event->state & GDK_CONTROL_MASK))
         return false;
-    if  (event->direction == GDK_SCROLL_UP || event->direction == GDK_SCROLL_DOWN)
-        _zoom_tree(event->direction == GDK_SCROLL_UP);
-    if  (event->direction == GDK_SCROLL_SMOOTH && event->delta_y != 0)
-        _zoom_tree(event->delta_y > 0);
+    if (event->direction == GDK_SCROLL_UP || event->direction == GDK_SCROLL_DOWN)
+        _zoom_tree(event->direction == GDK_SCROLL_DOWN);
+    if (event->direction == GDK_SCROLL_SMOOTH && event->delta_y != 0)
+        _zoom_tree(event->delta_y < 0);
     return true;
 }
 
@@ -1821,10 +1833,10 @@ bool CtMainWin::_on_textview_scroll_event(GdkEventScroll* event)
 {
     if (!(event->state & GDK_CONTROL_MASK))
         return false;
-    if  (event->direction == GDK_SCROLL_UP || event->direction == GDK_SCROLL_DOWN)
-        _ctTextview.zoom_text(event->direction == GDK_SCROLL_UP);
-    if  (event->direction == GDK_SCROLL_SMOOTH && event->delta_y != 0)
-        _ctTextview.zoom_text(event->delta_y > 0);
+    if (event->direction == GDK_SCROLL_UP || event->direction == GDK_SCROLL_DOWN)
+        _ctTextview.zoom_text(event->direction == GDK_SCROLL_DOWN);
+    if (event->direction == GDK_SCROLL_SMOOTH && event->delta_y != 0)
+        _ctTextview.zoom_text(event->delta_y < 0);
     return true;
 }
 

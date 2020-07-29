@@ -124,10 +124,21 @@ bool exists(const path& filepath)
     return Glib::file_test(filepath.string(), Glib::FILE_TEST_EXISTS);
 }
 
-// Open Filepath with External App
-void external_filepath_open(const fs::path& filepath, bool open_folder_if_file_not_exists, CtConfig* config)
+void open_weblink(const std::string& link)
 {
-    spdlog::debug("fs::external_filepath_open {}", filepath);
+#if defined(_WIN32) || defined(__APPLE__)
+    g_app_info_launch_default_for_uri(link.c_str(), nullptr, nullptr);
+#else
+    std::vector<std::string> argv = { "xdg-open", link};
+    Glib::spawn_async("", argv, Glib::SpawnFlags::SPAWN_SEARCH_PATH);
+    // g_app_info_launch_default_for_uri(link.c_str(), nullptr, nullptr); // doesn't work on KDE
+#endif
+}
+
+// Open Filepath with External App
+void open_filepath(const fs::path& filepath, bool open_folder_if_file_not_exists, CtConfig* config)
+{
+    spdlog::debug("fs::open_filepath {}", filepath);
     if (config->filelinkCustomOn) {
         std::string cmd = fmt::sprintf(config->filelinkCustomAct, filepath.string());
         const int retVal = std::system(cmd.c_str());
@@ -136,25 +147,28 @@ void external_filepath_open(const fs::path& filepath, bool open_folder_if_file_n
         }
     } else {
         if (open_folder_if_file_not_exists && !fs::exists(filepath)) {
-            external_folderpath_open(filepath, config);
+            open_folderpath(filepath, config);
         } else if (!fs::exists(filepath)) {
-            spdlog::error("fs::external_filepath_open: file doesn't exist, {}", filepath.string());
+            spdlog::error("fs::open_filepath: file doesn't exist, {}", filepath.string());
             return;
         } else {
 #ifdef _WIN32
-            ShellExecute(GetActiveWindow(), "open", filepath.c_str(), NULL, NULL, SW_SHOWNORMAL);
+            glong utf16text_len = 0;
+            g_autofree gunichar2* utf16text = g_utf8_to_utf16(filepath.c_str(), (glong)Glib::ustring(filepath.c_str()).bytes(), nullptr, &utf16text_len, nullptr);
+            ShellExecuteW(GetActiveWindow(), L"open", (LPCWSTR)utf16text, NULL, NULL, SW_SHOWNORMAL);
 #else
-            std::string f_path = "file://" + filepath.string();
-            g_app_info_launch_default_for_uri(f_path.c_str(), nullptr, nullptr);
+            std::vector<std::string> argv = { "xdg-open", "file://" + filepath.string() };
+            Glib::spawn_async("", argv, Glib::SpawnFlags::SPAWN_SEARCH_PATH);
+            // g_app_info_launch_default_for_uri(f_path.c_str(), nullptr, nullptr); // doesn't work on KDE
 #endif
         }
     }
 }
 
 // Open Folderpath with External App
-void external_folderpath_open(const fs::path& folderpath, CtConfig* config)
+void open_folderpath(const fs::path& folderpath, CtConfig* config)
 {
-    spdlog::debug("fs::external_folderpath_open {}", folderpath);
+    spdlog::debug("fs::open_folderpath {}", folderpath);
     if (config->folderlinkCustomOn) {
         std::string cmd = fmt::sprintf(config->folderlinkCustomAct, folderpath.string());
         const int retVal = std::system(cmd.c_str());
@@ -164,15 +178,32 @@ void external_folderpath_open(const fs::path& folderpath, CtConfig* config)
     } else {
         // https://stackoverflow.com/questions/42442189/how-to-open-spawn-a-file-with-glib-gtkmm-in-windows
 #ifdef _WIN32
-        ShellExecute(NULL, "open", folderpath.c_str(), NULL, NULL, SW_SHOWDEFAULT);
+        glong utf16text_len = 0;
+        g_autofree gunichar2* utf16text = g_utf8_to_utf16(folderpath.c_str(), (glong)Glib::ustring(folderpath.c_str()).bytes(), nullptr, &utf16text_len, nullptr);
+        ShellExecuteW(GetActiveWindow(), L"open", (LPCWSTR)utf16text, NULL, NULL, SW_SHOWDEFAULT);
 #elif defined(__APPLE__)
         std::vector<std::string> argv = { "open", folderpath.string() };
         Glib::spawn_async("", argv, Glib::SpawnFlags::SPAWN_SEARCH_PATH);
 #else
-        std::string f_path = "file://" + folderpath.string();
-        g_app_info_launch_default_for_uri(f_path.c_str(), nullptr, nullptr);
+        std::vector<std::string> argv = { "xdg-open", "file://" + folderpath.string() };
+        Glib::spawn_async("", argv, Glib::SpawnFlags::SPAWN_SEARCH_PATH);
+        // g_app_info_launch_default_for_uri(f_path.c_str(), nullptr, nullptr); // doesn't work on KDE
 #endif
     }
+}
+
+std::string get_content(const path& filepath)
+{
+    gchar *contents = NULL;
+    gsize  length   = 0;
+    g_file_get_contents(filepath.c_str(), &contents, &length, NULL);
+    if (contents)
+    {
+        std::string result(contents, length);
+        g_free(contents);
+        return result;
+    }
+    return std::string();
 }
 
 path prepare_export_folder(const path& dir_place, path new_folder, bool overwrite_existing)

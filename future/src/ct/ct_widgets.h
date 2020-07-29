@@ -29,14 +29,12 @@
 #include <gtksourceviewmm.h>
 #include <libxml++/libxml++.h>
 #include <sqlite3.h>
-#include <iostream>
 #include <unordered_map>
 #include <memory>
 #include <gspell/gspell.h>
 #include <map>
 #include "ct_types.h"
 #include "ct_filesystem.h"
-#include "ct_parser.h"
 
 
 class CtMDParser;
@@ -102,7 +100,7 @@ public:
     CtTreeView();
     virtual ~CtTreeView();
     void set_cursor_safe(const Gtk::TreeIter& iter);
-    void set_title_wrap_mode(int wrap_width);
+    void set_tree_node_name_wrap_width(int wrap_width);
 };
 
 class CtTextView : public Gsv::View

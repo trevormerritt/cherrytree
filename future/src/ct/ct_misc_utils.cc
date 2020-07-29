@@ -384,6 +384,7 @@ void CtTextIterUtil::rich_text_attributes_update(const Gtk::TextIter& text_iter,
         else if (str::startswith(tag_name, "style_")) curr_attributes[CtConst::TAG_STYLE] = "";
         else if (str::startswith(tag_name, "underline_")) curr_attributes[CtConst::TAG_UNDERLINE] = "";
         else if (str::startswith(tag_name, "strikethrough_")) curr_attributes[CtConst::TAG_STRIKETHROUGH] = "";
+        else if (str::startswith(tag_name, "indent_")) curr_attributes[CtConst::TAG_INDENT] = "";
         else if (str::startswith(tag_name, "scale_")) curr_attributes[CtConst::TAG_SCALE] = "";
         else if (str::startswith(tag_name, "justification_")) curr_attributes[CtConst::TAG_JUSTIFICATION] = "";
         else if (str::startswith(tag_name, "link_")) curr_attributes[CtConst::TAG_LINK] = "";
@@ -406,6 +407,7 @@ void CtTextIterUtil::rich_text_attributes_update(const Gtk::TextIter& text_iter,
         else if (str::startswith(tag_name, "style_")) curr_attributes[CtConst::TAG_STYLE] = tag_name.substr(6);
         else if (str::startswith(tag_name, "underline_")) curr_attributes[CtConst::TAG_UNDERLINE] = tag_name.substr(10);
         else if (str::startswith(tag_name, "strikethrough_")) curr_attributes[CtConst::TAG_STRIKETHROUGH] = tag_name.substr(14);
+        else if (str::startswith(tag_name, "indent_")) curr_attributes[CtConst::TAG_INDENT] = tag_name.substr(7);
         else if (str::startswith(tag_name, "link_")) curr_attributes[CtConst::TAG_LINK] = tag_name.substr(5);
         else if (str::startswith(tag_name, "family_")) curr_attributes[CtConst::TAG_FAMILY] = tag_name.substr(7);
         //else spdlog::error("Failure processing the toggling ON tag {}", tag_name);
@@ -891,18 +893,19 @@ int str::indexOf(const Glib::ustring& str, const gunichar& uc)
     return index != std::string::npos ? static_cast<int>(index) : -1;
 }
 
-std::string str::xml_escape(const std::string& text)
+Glib::ustring str::xml_escape(const Glib::ustring& text)
 {
-    std::string buffer;
+    Glib::ustring buffer;
     buffer.reserve(text.size());
-    for(size_t pos = 0; pos != text.size(); ++pos) {
-        switch(text[pos]) {
+    for (auto ch = text.begin(); ch != text.end(); ++ch)
+    {
+        switch(*ch) {
             case '&':  buffer.append("&amp;");       break;
             case '\"': buffer.append("&quot;");      break;
             case '\'': buffer.append("&apos;");      break;
             case '<':  buffer.append("&lt;");        break;
             case '>':  buffer.append("&gt;");        break;
-            default:   buffer.append(&text[pos], 1); break;
+            default:   buffer.append(1, *ch); break;
         }
     }
     return buffer;
@@ -915,7 +918,7 @@ Glib::ustring str::sanitize_bad_symbols(const Glib::ustring& xml_content)
     return re_pattern->replace(xml_content, 0, "", static_cast<Glib::RegexMatchFlags>(0));
 }
 
-std::string str::re_escape(const std::string& text)
+Glib::ustring str::re_escape(const Glib::ustring& text)
 {
     return Glib::Regex::escape_string(text);
 }

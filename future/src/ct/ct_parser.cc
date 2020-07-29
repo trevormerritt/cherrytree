@@ -26,59 +26,72 @@
 #include "ct_imports.h"
 #include "ct_logging.h"
 #include "ct_clipboard.h"
-#include <iostream>
+#include "ct_main_win.h"
 
-void CtParser::wipe()  
+
+
+void CtDocumentBuilder::wipe()  
 { 
-    _document = std::make_unique<xmlpp::Document>();
-    _current_element = nullptr;
+    _document = std::make_shared<xmlpp::Document>();
+    _current_element = _build_root_el();
 }
 
-void CtParser::_add_image(const std::string& path) noexcept 
+xmlpp::Element* CtDocumentBuilder::_build_root_el() {
+    return _document->create_root_node("root")->add_child("slot")->add_child("rich_text");
+}
+
+CtDocumentBuilder::CtDocumentBuilder(const CtConfig* pCtConfig) : _pCtConfig{pCtConfig}, _current_element{_document->create_root_node("root")->add_child("slot")->add_child("rich_text")} {}
+
+
+void CtDocumentBuilder::add_image(const std::string& path) noexcept 
 {
     try {
         CtXML::image_to_xml(_current_element->get_parent(), path, 0, CtConst::TAG_PROP_VAL_LEFT);
-        _close_current_tag();
+        close_current_tag();
     } catch(std::exception& e) {
         spdlog::error("Exception occured while adding image: {}", e.what());
     }
 }
 
-void CtParser::_add_superscript_tag(std::optional<std::string> text)
+void CtDocumentBuilder::add_broken_link(const std::string& link) {
+    _broken_links[link].emplace_back(_current_element);
+}
+
+void CtDocumentBuilder::add_superscript_tag(std::optional<std::string> text)
 {
     _current_element->set_attribute(CtConst::TAG_SCALE, CtConst::TAG_PROP_VAL_SUP);
     
-    if (text) _add_text(*text);
+    if (text) add_text(*text);
 }
 
-void CtParser::_add_subscript_tag(std::optional<std::string> text)
+void CtDocumentBuilder::add_subscript_tag(std::optional<std::string> text)
 {
     _current_element->set_attribute(CtConst::TAG_SCALE, CtConst::TAG_PROP_VAL_SUB);
     
-    if (text) _add_text(*text);
+    if (text) add_text(*text);
 }
 
-void CtParser::_add_codebox(const std::string& language, const std::string& text)
+void CtDocumentBuilder::add_codebox(const std::string& language, const std::string& text)
 {
-    _close_current_tag();
+    close_current_tag();
     xmlpp::Element* p_codebox_node = CtXML::codebox_to_xml(_current_element->get_parent(), CtConst::TAG_PROP_VAL_LEFT, 0, 300, 150, true, language, false, false);
     p_codebox_node->add_child_text(text);
-    _close_current_tag();
+    close_current_tag();
 }
 
-void CtParser::_add_ordered_list(unsigned int level, const std::string &data)
+void CtDocumentBuilder::add_ordered_list(unsigned int level, const std::string &data)
 {
-    _add_text(fmt::format("{}. {}", level, data));
+    add_text(fmt::format("{}. {}", level, data));
 }
 
 
-void CtParser::_add_todo_list(CHECKBOX_STATE state, const std::string& text)
+void CtDocumentBuilder::add_todo_list(checkbox_state state, const std::string& text)
 {
     auto todo_index = static_cast<int>(state);
-    _add_text(_pCtConfig->charsTodo[todo_index] + CtConst::CHAR_SPACE + text);
+    add_text(_pCtConfig->charsTodo[todo_index] + CtConst::CHAR_SPACE + text);
 }
 
-void CtParser::_add_list(uint8_t level, const std::string& data)
+void CtDocumentBuilder::add_list(uint8_t level, const std::string& data)
 {
     if (level >= _pCtConfig->charsListbul.size()) {
     if (_pCtConfig->charsListbul.size() == 0) {
@@ -93,186 +106,112 @@ void CtParser::_add_list(uint8_t level, const std::string& data)
     indent += CtConst::CHAR_TAB;
 }
 
-_add_text(indent + _pCtConfig->charsListbul[level] + CtConst::CHAR_SPACE + data);
+add_text(indent + _pCtConfig->charsListbul[level] + CtConst::CHAR_SPACE + data);
 }
-void CtParser::_add_weight_tag(const Glib::ustring& level, std::optional<std::string> data)
+void CtDocumentBuilder::add_weight_tag(const Glib::ustring& level, std::optional<std::string> data)
 {
     _current_element->set_attribute("weight", level);
     if (data) {
-        _add_text(*data, false);
+        add_text(*data, false);
     }
 }
 
-void CtParser::_add_monospace_tag(std::optional<std::string> text)
+void CtDocumentBuilder::add_monospace_tag(std::optional<std::string> text)
 {
     _current_element->set_attribute("family", "monospace");
-    if (text) _add_text(*text, false);
+    if (text) add_text(*text, false);
 }
 
-void CtParser::_add_link(const std::string& text)
+void CtDocumentBuilder::add_link(const std::string& text)
 {
     auto val = CtStrUtil::get_internal_link_from_http_url(text);
     _current_element->set_attribute(CtConst::TAG_LINK, val);
 }
 
-void CtParser::_add_strikethrough_tag(std::optional<std::string> data)
+void CtDocumentBuilder::add_strikethrough_tag(std::optional<std::string> data)
 {
     _current_element->set_attribute(CtConst::TAG_STRIKETHROUGH, CtConst::TAG_PROP_VAL_TRUE);
-    if (data) _add_tag_data(CtConst::TAG_STRIKETHROUGH, *data);
+    if (data) add_tag_data(CtConst::TAG_STRIKETHROUGH, *data);
 }
 
-void CtParser::_add_text(std::string text, bool close_tag /* = true */)
+void CtDocumentBuilder::add_text(std::string text, bool close_tag /* = true */)
 {
     if (!text.empty()) {
-        if (close_tag) _close_current_tag();
+        if (close_tag) close_current_tag();
     
         auto curr_text = _current_element->get_child_text();
         if (!curr_text) _current_element->set_child_text(std::move(text));
         else curr_text->set_content(curr_text->get_content() + std::move(text));
         if (close_tag) {
             _last_element = _current_element;
-            _close_current_tag();
+            close_current_tag();
         }
     }
 }
 
-void CtParser::_close_current_tag()
+void CtDocumentBuilder::with_last_element(const std::function<void()>& func) {
+    xmlpp::Element* curr_tmp = _current_element;
+    if (_last_element) _current_element = _last_element;
+
+    try {
+        func();
+    } catch(const std::exception&) {
+        _current_element = curr_tmp;
+        throw;
+    }
+    _current_element = curr_tmp;
+}
+
+void CtDocumentBuilder::add_hrule() {
+    add_text("\n" + _pCtConfig->hRule);
+    add_newline();
+}
+
+void CtDocumentBuilder::close_current_tag()
 {
-    if (!_tag_empty()) {
+    if (!tag_empty()) {
         _current_element = _current_element->get_parent()->add_child("rich_text");
         // Reset the tags
         _open_tags.clear();
     }
 }
 
-void CtParser::_add_newline() 
+void CtDocumentBuilder::add_newline() 
 {
     // Add a newline, if tags are empty no need to close the current tag
-    _add_text(CtConst::CHAR_NEWLINE, !_open_tags.empty());
+    add_text(CtConst::CHAR_NEWLINE, !_open_tags.empty());
 }
 
-void CtParser::_add_italic_tag(std::optional<std::string> data)
+void CtDocumentBuilder::add_italic_tag(std::optional<std::string> data)
 {
     _current_element->set_attribute(CtConst::TAG_STYLE, CtConst::TAG_PROP_VAL_ITALIC);
     
-    if (data) _add_tag_data(CtConst::TAG_STYLE, *data);
+    if (data) add_tag_data(CtConst::TAG_STYLE, *data);
 }
 
-void CtParser::_add_scale_tag(int level, std::optional<std::string> data)
+void CtDocumentBuilder::add_scale_tag(int level, std::optional<std::string> data)
 {
     _current_element->set_attribute(CtConst::TAG_SCALE, fmt::format("h{}", level));
     
-    if (data) _add_tag_data(CtConst::TAG_SCALE, *data);
+    if (data) add_tag_data(CtConst::TAG_SCALE, *data);
 }
 
 
-void CtParser::_add_tag_data(std::string_view tag, std::string data) 
+void CtDocumentBuilder::add_tag_data(std::string_view tag, std::string data) 
 {
     bool do_close = _open_tags[tag];
     
-    _add_text(std::move(data), do_close);
+    add_text(std::move(data), do_close);
     _open_tags[tag] = true;
 }
 
 
-void CtParser::_build_token_maps() 
-{
-    if (_open_tokens_map.empty() || _close_tokens_map.empty()) {
-        _init_tokens();
-        
-        // Build open tokens
-        if (_open_tokens_map.empty()) {
-            for (const auto& token : _token_schemas) {
-                _open_tokens_map[token.open_tag] = &token;
-            }
-        }
-        // Build close tokens
-        if (_close_tokens_map.empty()) {
-            for (const auto& token : _token_schemas) {
-                if (token.has_closetag) {
-                    if (token.is_symmetrical || !token.has_closetag) _close_tokens_map[token.open_tag]  = &token;
-                    else                                             _close_tokens_map[token.close_tag] = &token;
-                }
-            }
-        }
-    }
-}
 
-
-void CtParser::_add_table(const std::vector<std::vector<std::string>>& table_matrix)
+void CtDocumentBuilder::add_table(const std::vector<std::vector<std::string>>& table_matrix)
 {
     CtXML::table_to_xml(table_matrix, _current_element->get_parent(), 0, CtConst::TAG_PROP_VAL_LEFT, 40, 400);
-    _close_current_tag();
+    close_current_tag();
 }
-
-
-void CtHtmlParser::feed(const std::string& html)
-{
-    struct helper_function
-    {
-        static void start_element(void *ctx, const xmlChar *name, const xmlChar **atts)
-        {
-            reinterpret_cast<CtHtmlParser*>(ctx)->handle_starttag((const char*)name, (const char**)atts);
-        }
-        static void end_element(void* ctx, const xmlChar* name)
-        {
-            reinterpret_cast<CtHtmlParser*>(ctx)->handle_endtag((const char*)name);
-        }
-        static void characters(void *ctx, const xmlChar *ch, int len)
-        {
-            reinterpret_cast<CtHtmlParser*>(ctx)->handle_data(std::string_view((const char*)ch, len));
-        }
-        static void reference(void *ctx, const xmlChar *name)
-        {
-            reinterpret_cast<CtHtmlParser*>(ctx)->handle_charref((const char*)name);
-        }
-    };
-
-    htmlSAXHandler sax2Handler;
-    memset(&sax2Handler, 0, sizeof(sax2Handler));
-    sax2Handler.initialized = XML_SAX2_MAGIC;
-    sax2Handler.startElement = helper_function::start_element;
-    sax2Handler.endElement = helper_function::end_element;
-    sax2Handler.characters = helper_function::characters;
-    sax2Handler.reference = helper_function::reference;
-
-    htmlSAXParseDoc((xmlChar*)html.c_str(), "UTF-8", &sax2Handler, this);
-}
-
-void CtHtmlParser::handle_starttag(std::string_view /*tag*/, const char **/*atts*/)
-{
-    // spdlog::debug("SAX tag: {}", tag);
-}
-
-void CtHtmlParser::handle_endtag(std::string_view /*tag*/)
-{
-    // spdlog::debug("SAX endtag: {}", tag);
-}
-
-void CtHtmlParser::handle_data(std::string_view /*tag*/)
-{
-    // spdlog::debug("SAX data: {}", text);
-}
-
-void CtHtmlParser::handle_charref(std::string_view /*tag*/)
-{
-    // spdlog::debug("SAX ref: {}", name);
-}
-
-/*static*/ std::list<CtHtmlParser::html_attr> CtHtmlParser::char2list_attrs(const char** atts)
-{
-    std::list<html_attr> attr_list;
-    if (atts == nullptr)  return attr_list;
-    while (*atts != nullptr)
-    {
-        html_attr attr;
-        attr.name = *(atts++);
-        attr.value = *(atts++);
-        attr_list.push_back(attr);
-    }
-    return attr_list;
-}
-
 
 
 CtMarkdownFilter::CtMarkdownFilter(std::unique_ptr<CtClipboard> clipboard, Glib::RefPtr<Gtk::TextBuffer> buff, CtConfig* config) : 
@@ -336,7 +275,7 @@ void CtMarkdownFilter::_on_buffer_erase(const Gtk::TextIter& begin, const Gtk::T
             Gtk::TextIter iter = begin;
             iter.backward_char();
 
-            auto erase_tag_seg = [this](const std::string& tag, CtTextParser::TokenMatcher& matcher,
+            auto erase_tag_seg = [this](const std::string& tag, CtTokenMatcher& matcher,
                                         Gtk::TextIter start) {
                 std::size_t offset = 0;
                 auto tag_ptr = _buffer->get_tag_table()->lookup(tag);
@@ -375,7 +314,7 @@ void CtMarkdownFilter::_markdown_insert() {
             auto end_offset = _md_matcher->raw_end_offset();
             std::string raw_token = _md_matcher->raw_str();
 
-            _md_parser->wipe();
+            _md_parser->wipe_doc();
             _md_matcher.reset();
 
             auto iter_begin = _buffer->get_insert()->get_iter();
@@ -390,7 +329,7 @@ void CtMarkdownFilter::_markdown_insert() {
             _buffer->erase(iter_begin, iter_end);
             
         
-            _clipboard->from_xml_string_to_buffer(_buffer, _md_parser->to_string());
+            _clipboard->from_xml_string_to_buffer(_buffer, _md_parser->xml_doc_string());
 
             auto iter_insert = _buffer->get_insert()->get_iter();
             iter_insert.forward_chars(end_offset);
@@ -405,7 +344,7 @@ void CtMarkdownFilter::_on_buffer_insert(const Gtk::TextBuffer::iterator& pos, c
         if (active() &&
             text.size() == 1 /* For now, only handle single chars */ ) {
             std::shared_ptr<CtMDParser> md_parser;
-            std::shared_ptr<CtTextParser::TokenMatcher> md_matcher;
+            std::shared_ptr<CtTokenMatcher> md_matcher;
             Gtk::TextIter back_iter = pos;
             back_iter.backward_chars(text.length() + 1);
             for (char insert_ch : text) {
@@ -430,7 +369,7 @@ void CtMarkdownFilter::_on_buffer_insert(const Gtk::TextBuffer::iterator& pos, c
                 if (!has_mark) {
                     spdlog::debug("Creating new tag: {}", tag_name);
                     md_parser = std::make_shared<CtMDParser>(_config);
-                    md_matcher = std::make_unique<CtTextParser::TokenMatcher>(md_parser);
+                    md_matcher = std::make_unique<CtTokenMatcher>(md_parser->text_parser());
 
                     match_pair_t pair{md_parser, md_matcher};
 
@@ -458,7 +397,7 @@ void CtMarkdownFilter::_on_buffer_insert(const Gtk::TextBuffer::iterator& pos, c
                 } else {
                     _buffer->remove_tag_by_name(tag_name, _buffer->begin(), _buffer->end());
                     _md_matchers.erase(tag_name);
-                    md_parser->wipe();
+                    md_parser->wipe_doc();
                     md_matcher->reset();
                     md_parser.reset();
                     md_matcher.reset();
@@ -481,7 +420,6 @@ void CtMarkdownFilter::_apply_tag(const Glib::ustring& tag, const Gtk::TextIter&
     _buffer->apply_tag_by_name(tag, start, end);
 }
 
-
 std::string CtMarkdownFilter::_get_new_md_tag_name() const {
     return fmt::format("md-formatting-{}", _md_matchers.size());
 }
@@ -489,5 +427,400 @@ std::string CtMarkdownFilter::_get_new_md_tag_name() const {
 bool CtMarkdownFilter::active() const noexcept 
 { 
     return _active && _config->enableMdFormatting; 
+}
+namespace {
+using c_string = std::vector<char>;
+
+std::vector<c_string> split_by_null(std::istream& in) 
+{
+    // getline will throw on eof otherwise
+    std::vector<c_string> file_strings;
+
+    in.seekg(0, std::ios::end);
+    std::vector<char> buff(in.tellg());
+    in.seekg(0, std::ios::beg);
+
+    in.read(buff.data(), buff.size());
+
+    auto iter = buff.begin();
+    auto last = iter;
+    for(;iter != buff.end(); ++iter) {
+        if (*iter == '\0') {
+            file_strings.emplace_back(last, iter + 1);
+            last = iter + 1;
+        }
+    }
+    
+    in.seekg(0, std::ios::beg);
+
+    return file_strings;
+}
+
+
+std::vector<CtMempadParser::page> parse_mempad_strings(const std::vector<c_string>& mem_strs) 
+{
+    // Expected input is something like MeMpAd1.\0\0...\0...\0... etc
+    
+    std::vector<CtMempadParser::page> parsed_strs;
+
+    auto iter = mem_strs.begin() + 2;
+    while (iter != mem_strs.end()) {
+        // First character will be the number
+        int page_lvl = iter->front();
+        std::string title{iter->begin() + 1, iter->end()};
+
+        ++iter;
+        if (iter == mem_strs.end()) throw std::runtime_error("Unexpected EOF");
+    
+        std::string contents{iter->begin(), iter->end()};
+
+        CtMempadParser::page p{
+            .level = page_lvl,
+            .name = std::move(title),
+            .contents = std::move(contents)
+
+        };
+        parsed_strs.emplace_back(std::move(p));
+
+        ++iter;
+    }
+
+    return parsed_strs;
+}
+}
+
+void CtMempadParser::feed(std::istream& data)
+{
+    /**
+     * The mempad data format is pretty simple:
+     * 
+     * Each file has a header which starts with `MeMpAd` then there is an encoding character " " is ASCII . is UTF-8. Then the page number which is max 1-5 characters
+     * MeMpAd[.| ][0-9]{0,5}
+     * 
+     * Then each page has a level which is (annoyingly) is raw binary, next is the page name and finally the contents
+     */
+
+
+
+    // mempad uses null terminated strings in its format 
+    auto strings = split_by_null(data);
+
+
+    std::vector<page> new_pages = parse_mempad_strings(strings);
+    _parsed_pages.insert(_parsed_pages.cend(), new_pages.begin(), new_pages.end());
+
+}
+
+CtZimParser::CtZimParser(CtConfig* config) : CtDocBuildingParser{config}, _text_parser{std::make_shared<CtTextParser>(_token_schemas())} {}
+
+void CtZimParser::feed(std::istream& data)
+{
+   
+    std::string line;
+
+    bool found_header = false;
+
+    try {
+        while(std::getline(data, line, '\n')) {
+            if (!found_header && line.find("Creation-Date:") != std::string::npos) {
+                // Creation-Date: .* is the final line of the header
+                // TODO: Read the creation date and use it for ts_creation
+                found_header = true;
+                
+            } else {
+                _parse_body_line(line);
+            }
+        }
+    } catch(const std::ios::failure&) {}
+
+}
+
+std::vector<CtTextParser::token_schema> CtZimParser::_token_schemas()
+{
+    return {
+            // Bold
+            {"**", true, true, [this](const std::string& data){
+                doc_builder().close_current_tag();
+                doc_builder().add_weight_tag(CtConst::TAG_PROP_VAL_HEAVY, data);
+                doc_builder().close_current_tag();
+            }},
+            // Indentation detection for lists
+            {"\t", false, false, [this](const std::string& data) {
+                _list_level++;
+                // Did a double match for even number of \t tags
+                if (data.empty()) _list_level++;
+            }},
+            {"https://", false, false, [this](const std::string& data) {
+                doc_builder().close_current_tag();
+                doc_builder().add_link("https://"+data);
+                doc_builder().add_text("https://"+data);
+            }},
+            {"http://", false, false, [this](const std::string& data) {
+                doc_builder().close_current_tag();
+                doc_builder().add_link("http://"+data);
+                doc_builder().add_text("http://"+data);
+            }},
+            // Bullet list
+            {"* ", false, false, [this](const std::string& data) {
+                doc_builder().add_list(_list_level, data);
+                _list_level = 0;
+            }},
+            // Italic
+            {"//", true, true, [this](const std::string& data) {
+                doc_builder().close_current_tag();
+                doc_builder().add_italic_tag(data);
+                doc_builder().close_current_tag();
+            }},
+            // Strikethrough
+            {"~~", true, true, [this](const std::string& data){
+                doc_builder().close_current_tag();
+                doc_builder().add_strikethrough_tag(data);
+                doc_builder().close_current_tag();
+            }},
+            // Headers
+            {"==", false, false, [this](const std::string &data) {
+                int count = 5;
+                auto iter = data.begin();
+                while (*iter == '=') {
+                    count--;
+                    ++iter;
+                }
+                if (count < 0) {
+                    throw CtImportException(fmt::format("Parsing error while parsing header data: {} - Too many '='", data));
+                }
+
+                if (count > 3) {
+                    // Reset to smaller (h3 currently)
+                    count = 3;
+                }
+
+                auto str = str::replace(data, "= ", "");
+                str = str::replace(str, "=", "");
+
+                doc_builder().close_current_tag();
+                doc_builder().add_scale_tag(count, str);
+                doc_builder().close_current_tag();
+            }, "==", true},
+            // External link (e.g https://example.com)
+            {"{{", true, false, [](const std::string&) {
+                // Todo: Implement this (needs image importing)
+            },"}}"},
+            // Todo list
+           // {"[", true, false, links_match_func, "] "},
+            {"[*", true, false, [this](const std::string& data) {
+                doc_builder().add_todo_list(CtDocumentBuilder::checkbox_state::ticked, data);
+            }, "]"},
+            {"[x", true, false, [this](const std::string& data) {
+                doc_builder().add_todo_list(CtDocumentBuilder::checkbox_state::marked, data);
+            }, "]"},
+            {"[>", true, false, [this](const std::string& data) {
+                doc_builder().add_todo_list(CtDocumentBuilder::checkbox_state::marked, data);
+            }, "]"},
+            {"[ ", true, false, [this](const std::string& data) {
+                doc_builder().add_todo_list(CtDocumentBuilder::checkbox_state::unchecked, data);
+            }, "]"},
+            // Internal link (e.g MyPage)
+            {"[[", true, false, [this](const std::string& data){
+                doc_builder().close_current_tag();
+                doc_builder().add_broken_link(data);
+                doc_builder().add_text(data);
+                doc_builder().close_current_tag();
+            }, "]]"},
+            // Verbatum - captures all the tokens inside it and print without formatting
+            {"''", true, true, [this](const std::string& data){
+                doc_builder().add_text(data);
+            }, "''", true},
+            // Suberscript
+            {"^{", true, false, [this](const std::string& data){
+                doc_builder().close_current_tag();
+                doc_builder().add_superscript_tag(data);
+                doc_builder().close_current_tag();
+            }, "}"},
+            // Subscript
+            {"_{", true, false, [this](const std::string& data){
+                doc_builder().close_current_tag();
+                doc_builder().add_subscript_tag(data);
+                doc_builder().close_current_tag();
+            }, "}"}
+
+    };
+    
+}
+
+void CtZimParser::_parse_body_line(const std::string& line)
+{
+    auto tokens_raw = _text_parser->tokenize(line);
+    auto tokens = _text_parser->parse_tokens(tokens_raw);
+
+    for (const auto& token : tokens) {
+        if (token.first) {
+            token.first->action(token.second);
+        } else {
+            doc_builder().add_text(token.second);
+        }
+
+    }
+    doc_builder().add_newline();
+}
+
+
+namespace {
+// These hash tables use the tx or t attributes of the node as keys 
+using name_lookup_table_t = std::unordered_map<std::string, Glib::ustring>;
+using children_lookup_t = std::unordered_map<std::string, std::vector<std::string>>;
+using node_loopup_table_t = std::unordered_map<std::string, CtLeoParser::leo_node>;
+
+CtLeoParser::leo_node parse_leo_t_el(const xmlpp::Element& node) 
+{
+    assert(node.get_name() == "t");
+
+    CtLeoParser::leo_node lnode;
+
+    if (node.has_child_text()) {
+        lnode.content = node.get_child_text()->get_content();
+    }
+
+    return lnode;
+}
+
+std::pair<std::string, Glib::ustring> read_leo_vnode(const xmlpp::Element& v_el) {
+    assert(v_el.get_name() == "v");
+
+    
+    auto* vh_el = dynamic_cast<const xmlpp::Element*>(v_el.get_first_child());
+    if (!vh_el) throw std::invalid_argument("v element does not have a <vh> child element!");
+
+    std::string tx_id = v_el.get_attribute("t")->get_value();
+    Glib::ustring contents = vh_el->get_child_text()->get_content();
+
+    return {tx_id, contents};
+}
+
+void find_node_children(const xmlpp::Element& v_el, children_lookup_t& children) {
+    assert(v_el.get_name() == "v");
+
+    std::string tx_id = read_leo_vnode(v_el).first;
+    for (auto* node : v_el.get_children("v")) {
+        if (auto* el = dynamic_cast<xmlpp::Element*>(node)) {
+            auto data = read_leo_vnode(*el);
+            
+            children[tx_id].emplace_back(data.first);
+            find_node_children(*el, children);
+
+        } else {
+            throw std::runtime_error("Leo document is malformed");
+        }
+    }
+}
+
+void build_tx_lookup_table(const xmlpp::Node& vnode, name_lookup_table_t& table) {
+    for (auto* node : vnode.get_children("v")) {
+        if (auto* el = dynamic_cast<xmlpp::Element*>(node)) {
+            table.emplace(read_leo_vnode(*el));
+            build_tx_lookup_table(*el, table);
+        }
+    }
+}
+
+name_lookup_table_t generate_tx_lookup_table(const xmlpp::Node& vnode_root) {
+    assert(vnode_root.get_name() == "vnodes");
+
+    name_lookup_table_t tx_id_to_names;
+    build_tx_lookup_table(vnode_root, tx_id_to_names);
+
+    return tx_id_to_names;
+}
+
+children_lookup_t generate_children_lookup_table(const xmlpp::Node& vnode_root) {
+    assert(vnode_root.get_name() == "vnodes");
+    children_lookup_t lookup_tbl;
+    for (auto* node : vnode_root.get_children()) {
+        if (node->get_name() == "v") {
+            if (auto* el = dynamic_cast<xmlpp::Element*>(node)) {
+                find_node_children(*el, lookup_tbl);
+            } else {
+                throw std::runtime_error("Leo document is malformed");
+            }
+        }
+    }
+    return lookup_tbl;
+}
+
+
+void populate_leo_nodes(const xmlpp::Node& vnode_root, node_loopup_table_t& lnodes)  
+{
+    auto tx_lookup = generate_tx_lookup_table(vnode_root);
+    auto child_lookup = generate_children_lookup_table(vnode_root);
+
+    for (auto& node_pair : lnodes) {
+        auto& node = node_pair.second;
+        node.name = tx_lookup.at(node_pair.first);        
+        auto node_children = child_lookup.find(node_pair.first);
+        if (node_children != child_lookup.end()) {
+            for (const auto& child_tx : node_children->second) {
+                auto child = lnodes.at(child_tx);
+                node.children.emplace_back(std::move(child));
+            }
+        }
+    }    
+
+}
+
+node_loopup_table_t parse_leo_tnodes(const xmlpp::Node& tnodes_root) 
+{
+    assert(tnodes_root.get_name() == "tnodes");
+
+    node_loopup_table_t leo_nodes;
+    for (auto* node : tnodes_root.get_children()) {
+        if (node->get_name() == "t") {
+            if (auto* el = dynamic_cast<xmlpp::Element*>(node)) {
+                std::string tx_id = el->get_attribute("tx")->get_value();
+                leo_nodes.emplace(tx_id, parse_leo_t_el(*el));
+            }
+        }
+    }
+
+    return leo_nodes;
+}
+
+xmlpp::Node* find_leo_vnodes_el(const xmlpp::Node& root) {
+    return root.get_children("vnodes").front();
+}
+
+xmlpp::Node* find_leo_tnodes_el(const xmlpp::Node& root) {
+    return root.get_children("tnodes").front();
+}
+
+std::vector<CtLeoParser::leo_node> parse_leo_tree(const xmlpp::Node& vnode_root, xmlpp::Node& tnode_root) {
+    auto l_nodes = parse_leo_tnodes(tnode_root);
+    populate_leo_nodes(vnode_root, l_nodes);
+
+    std::vector<CtLeoParser::leo_node> populated_nodes;
+    for (auto& node : l_nodes) {
+        populated_nodes.emplace_back(std::move(node.second));
+    }
+
+    return populated_nodes;
+}
+
+std::vector<CtLeoParser::leo_node> walk_leo_xml(const xmlpp::Node& root) {
+    auto* vnode = find_leo_vnodes_el(root);
+    auto* tnode = find_leo_tnodes_el(root);
+
+    if (!vnode || !tnode) throw std::runtime_error("Leo XML is malformed");
+
+    return parse_leo_tree(*vnode, *tnode);
+}
+}
+
+void CtLeoParser::feed(std::istream& in) {
+
+    xmlpp::DomParser p;
+    p.parse_stream(in);
+
+    xmlpp::Element* root = p.get_document()->get_root_node();
+
+    auto new_nodes = walk_leo_xml(*root);
+    _leo_nodes.insert(_leo_nodes.cend(), new_nodes.begin(), new_nodes.end());
 }
 
